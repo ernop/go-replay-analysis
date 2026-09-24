@@ -52,9 +52,15 @@ for other candidates, wood-colored board.
     and finished-game lists, public `sgf.php` for downloads). DGS removed all
     anonymous list access, so fetching requires the owner's own DGS login in
     `.env.local` (`DGS_USERID` / `DGS_PASSWD`); credentials are used once per fetch
-    and never stored in the DB. Verified 2026-09: handle `rbadam` does not exist on
-    DGS; handle `Adam` exists and is seeded as Adam's account
-    (`data/seed-accounts.json`, loaded when the accounts table is empty).
+    and never stored in the DB. The fetcher pages through the user's complete
+    finished-games archive (100 per page, capped at 400 games) because tracked
+    players have 10+ year archives and old games matter (e.g. the owner's old simul
+    games against Adam, ~2015).
+    Verified 2026-09: handle `rbadam` does not exist on DGS; handle `Adam` exists
+    (Adam is roughly 4d–8d amateur) and the owner's old account `kouchi` still
+    exists (also `kochi`, presumed unrelated). Both are seeded in
+    `data/seed-accounts.json` (loaded when the accounts table is empty). Password
+    recovery for old DGS accounts: https://www.dragongoserver.net/forgot.php
   - Other servers (IGS/PandaNet, Fox, Tygem) can be registered for name-matching
     but have no fetcher yet.
 - DGS names players as "Real Name (handle)", so person-matching also matches a

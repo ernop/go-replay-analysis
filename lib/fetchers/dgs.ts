@@ -2,7 +2,9 @@ import type Database from "better-sqlite3";
 import { ingestSgf } from "../db";
 
 const DGS = "https://www.dragongoserver.net";
-const MAX_GAMES = 30;
+// DGS archives go back decades; page through everything up to this safety cap.
+const MAX_GAMES = 400;
+const PAGE_SIZE = 100; // DGS quick-suite maximum per page
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -78,14 +80,23 @@ export async function fetchDgsGames(
     return { added: 0, skipped: 0, note: "DGS user lookup returned no user id" };
   }
 
-  // 3. list the user's finished games (newest first)
-  const list = await quickDo(
-    `obj=game&cmd=list&view=finished&uid=${uid}&lstyle=json&limit=${MAX_GAMES}&off=0`
-  );
-  if (list.error) {
-    return { added: 0, skipped: 0, note: `DGS game list failed: ${list.error}` };
+  // 3. page through the user's complete finished-games archive
+  const items: { id: number; time_lastmove?: string }[] = [];
+  for (let off = 0; items.length < MAX_GAMES; off += PAGE_SIZE) {
+    const list = await quickDo(
+      `obj=game&cmd=list&view=finished&uid=${uid}&lstyle=json&limit=${PAGE_SIZE}&off=${off}`
+    );
+    if (list.error) {
+      if (items.length === 0) {
+        return { added: 0, skipped: 0, note: `DGS game list failed: ${list.error}` };
+      }
+      break; // keep what we already have
+    }
+    const page = (list.list_result ?? []) as { id: number; time_lastmove?: string }[];
+    items.push(...page);
+    if (!list.list_has_next || page.length === 0) break;
+    await sleep(400);
   }
-  const items = (list.list_result ?? []) as { id: number; time_lastmove?: string }[];
   items.sort((a, b) => String(b.time_lastmove ?? "").localeCompare(String(a.time_lastmove ?? "")));
 
   if (items.length === 0) {
@@ -95,7 +106,7 @@ export async function fetchDgsGames(
   // 4. download SGFs (public endpoint)
   let added = 0;
   let skipped = 0;
-  for (const item of items) {
+  for (const item of items.slice(0, MAX_GAMES)) {
     const gid = Number(item.id);
     if (!Number.isFinite(gid) || gid <= 0) {
       skipped++;
@@ -116,11 +127,11 @@ export async function fetchDgsGames(
     const result = ingestSgf(db, sgf, "dgs", sourceKey);
     if (result.added) added++;
     else skipped++;
-    await sleep(400); // be polite; DGS rate-limits aggressively
+    await sleep(300); // be polite; DGS rate-limits aggressively
   }
   return {
     added,
     skipped,
-    note: `checked ${items.length} most recent finished games for ${String(info.handle ?? username)}`,
+    note: `checked ${items.length} finished games for ${String(info.handle ?? username)}`,
   };
 }
