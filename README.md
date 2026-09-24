@@ -44,8 +44,15 @@ npm run analyze:mock
 
 - **Accounts tab** — register usernames per server (OGS, KGS, DGS, …) and who they
   belong to (Me / Carl / Adam / Gary / other). **Fetch games** pulls recent games
-  from OGS and KGS; all registered names are used to label library games with their
-  person for filtering.
+  from OGS, KGS, and DGS; all registered names are used to label library games with
+  their person for filtering.
+- **DGS credentials** — Dragon Go Server only allows logged-in users to list games,
+  so DGS fetching needs your own DGS login in `.env.local`:
+
+```bash
+DGS_USERID=your-dgs-handle
+DGS_PASSWD=your-dgs-password
+```
 - **Upload SGF** — drop any `.sgf` files into the library.
 
 ## Project layout

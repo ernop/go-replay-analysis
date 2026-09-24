@@ -126,12 +126,32 @@ export function uploadSourceKey(content: string): string {
 
 function seedIfEmpty(db: Database.Database) {
   const count = (db.prepare("SELECT COUNT(*) AS n FROM games").get() as { n: number }).n;
-  if (count > 0) return;
-  if (!fs.existsSync(SEED_DIR)) return;
-  for (const file of fs.readdirSync(SEED_DIR).sort()) {
-    if (!file.endsWith(".sgf")) continue;
-    const content = fs.readFileSync(path.join(SEED_DIR, file), "utf8");
-    ingestSgf(db, content, "seed", `seed:${file}`);
+  if (count === 0 && fs.existsSync(SEED_DIR)) {
+    for (const file of fs.readdirSync(SEED_DIR).sort()) {
+      if (!file.endsWith(".sgf")) continue;
+      const content = fs.readFileSync(path.join(SEED_DIR, file), "utf8");
+      ingestSgf(db, content, "seed", `seed:${file}`);
+    }
+  }
+
+  const accountCount = (db.prepare("SELECT COUNT(*) AS n FROM accounts").get() as { n: number }).n;
+  const accountsFile = path.join(DATA_DIR, "seed-accounts.json");
+  if (accountCount === 0 && fs.existsSync(accountsFile)) {
+    try {
+      const seedAccounts = JSON.parse(fs.readFileSync(accountsFile, "utf8")) as {
+        server: string;
+        username: string;
+        person: string;
+      }[];
+      const stmt = db.prepare(
+        "INSERT OR IGNORE INTO accounts (server, username, person, added_at) VALUES (?, ?, ?, ?)"
+      );
+      for (const a of seedAccounts) {
+        stmt.run(a.server, a.username, a.person, new Date().toISOString());
+      }
+    } catch {
+      // malformed seed file: skip silently, accounts can be added in the UI
+    }
   }
 }
 
@@ -154,9 +174,12 @@ export function rowToSummary(row: GameRow, accounts?: Account[]): GameSummary {
   if (accounts) {
     const black = String(row.black).toLowerCase();
     const white = String(row.white).toLowerCase();
+    // DGS writes players as "Real Name (handle)", so also match on "(handle)".
+    const matches = (player: string, u: string) =>
+      player === u || player.includes(`(${u})`);
     for (const a of accounts) {
       const u = a.username.toLowerCase();
-      if ((u === black || u === white) && !people.includes(a.person)) {
+      if ((matches(black, u) || matches(white, u)) && !people.includes(a.person)) {
         people.push(a.person);
       }
     }

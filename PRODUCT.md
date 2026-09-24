@@ -47,9 +47,18 @@ for other candidates, wood-colored board.
   servers — usernames are assumed distinctive enough; revisit if collisions appear).
 - **Automatic game fetching** is implemented for:
   - **OGS** (online-go.com REST API: player search → recent finished games → SGF),
-  - **KGS** (scrape of the monthly `gameArchives.jsp` pages, current + previous month).
-  - Other servers (DGS, IGS/PandaNet, Fox, Tygem) can be registered for name-matching
+  - **KGS** (scrape of the monthly `gameArchives.jsp` pages, current + previous month),
+  - **DGS** (Dragon Go Server "quick suite": `quick_do.php` JSON API for user lookup
+    and finished-game lists, public `sgf.php` for downloads). DGS removed all
+    anonymous list access, so fetching requires the owner's own DGS login in
+    `.env.local` (`DGS_USERID` / `DGS_PASSWD`); credentials are used once per fetch
+    and never stored in the DB. Verified 2026-09: handle `rbadam` does not exist on
+    DGS; handle `Adam` exists and is seeded as Adam's account
+    (`data/seed-accounts.json`, loaded when the accounts table is empty).
+  - Other servers (IGS/PandaNet, Fox, Tygem) can be registered for name-matching
     but have no fetcher yet.
+- DGS names players as "Real Name (handle)", so person-matching also matches a
+  registered username appearing as `(handle)` inside the player name.
 - Fetches are capped (~30 games) and throttled to be polite; games are deduped by a
   per-source key (`ogs:<id>`, `kgs:<path>`, `upload:<sha1>`, `seed:<file>`).
 

@@ -97,4 +97,4 @@ export const SERVERS = [
 ] as const;
 
 /** Servers we can automatically fetch game archives from. */
-export const FETCHABLE_SERVERS = ["OGS", "KGS"] as const;
+export const FETCHABLE_SERVERS = ["OGS", "KGS", "DGS"] as const;

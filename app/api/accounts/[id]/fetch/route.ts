@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, type GameRow } from "@/lib/db";
 import { fetchOgsGames } from "@/lib/fetchers/ogs";
 import { fetchKgsGames } from "@/lib/fetchers/kgs";
+import { fetchDgsGames } from "@/lib/fetchers/dgs";
 
 export async function POST(
   _req: NextRequest,
@@ -22,6 +23,8 @@ export async function POST(
       result = await fetchOgsGames(db, account.username);
     } else if (account.server === "KGS") {
       result = await fetchKgsGames(db, account.username);
+    } else if (account.server === "DGS") {
+      result = await fetchDgsGames(db, account.username);
     } else {
       return NextResponse.json(
         { error: `automatic fetching from ${account.server} is not implemented yet` },

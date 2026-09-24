@@ -89,9 +89,13 @@ export default function AccountsPage() {
         <p className="text-base font-semibold mb-4">
           Register usernames per server so games get labeled with who played them, and so
           their recent games can be pulled into the library. Automatic fetching works for{" "}
-          <span className="text-gold font-bold">OGS</span> and{" "}
-          <span className="text-gold font-bold">KGS</span> today; other servers are stored
-          for name-matching only.
+          <span className="text-gold font-bold">OGS</span>,{" "}
+          <span className="text-gold font-bold">KGS</span>, and{" "}
+          <span className="text-gold font-bold">DGS</span> today; other servers are stored
+          for name-matching only. DGS requires your own DGS login in{" "}
+          <code className="text-gold">.env.local</code> (<code>DGS_USERID</code> /{" "}
+          <code>DGS_PASSWD</code>) because Dragon allows archive access only to
+          logged-in users.
         </p>
         <div className="flex flex-wrap items-end gap-2">
           <div>
