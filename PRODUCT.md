@@ -85,7 +85,11 @@ browser can view results afterward.
 - Storage: single SQLite file `data/go-replay.db` (gitignored). SGF text is stored
   in the DB row. Seed games live in `data/seed-sgf/` (committed) and are ingested on
   first run.
-- Server binds `0.0.0.0:4517` so a phone on the same LAN can reach it.
+- Server binds `0.0.0.0:4517` so a phone on the same LAN can reach it. Next.js dev
+  mode blocks cross-origin dev-asset requests from anything but `localhost`, which
+  froze the app when opened via `127.0.0.1` or a LAN IP — `allowedDevOrigins` in
+  `next.config.ts` therefore allows loopback and private-network (192.168/10/172)
+  hostnames. Production (`npm start`) has no such restriction.
 - Seed content: AlphaGo–Lee Sedol games 1–5 (2016), Shusaku's ear-reddening game
   (1846) and an 1855 Shusaku–Gennan game, Go Seigen–Shusai "Game of the Century"
   (1933), Go Seigen–Kitani first Kamakura jubango game (1939). From Andries
