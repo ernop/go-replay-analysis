@@ -56,10 +56,13 @@ for other candidates, wood-colored board.
     finished-games archive (100 per page, capped at 400 games) because tracked
     players have 10+ year archives and old games matter (e.g. the owner's old simul
     games against Adam, ~2015).
-    Verified 2026-09: handle `rbadam` does not exist on DGS; handle `Adam` exists
-    (Adam is roughly 4d–8d amateur) and the owner's old account `kouchi` still
-    exists (also `kochi`, presumed unrelated). Both are seeded in
-    `data/seed-accounts.json` (loaded when the accounts table is empty). Password
+    Verified 2026-09: the owner's Adam is DGS handle **`adum`** ("adam miller",
+    active, 428+ finished games, played `kouchi` at 2d–3d in 2004–2009). The
+    handles `Adam` (an unrelated one-login 2005 account) and `rbadam` (nonexistent)
+    are NOT him. The owner's old account is `kouchi` (games 2004–2011; the ~2015
+    simul games are not in its archive). Both `adum` and `kouchi` are seeded in
+    `data/seed-accounts.json` (loaded when the accounts table is empty). The DGS
+    list API returns games newest first, so the 400 cap keeps the most recent. Password
     recovery for old DGS accounts: https://www.dragongoserver.net/forgot.php
   - Other servers (IGS/PandaNet, Fox, Tygem) can be registered for name-matching
     but have no fetcher yet.
@@ -73,6 +76,10 @@ for other candidates, wood-colored board.
 Decision: analysis runs on the **owner's local GPU**, not in the cloud — renting a
 production GPU was judged not worth the hassle. The web server is the store; any
 browser can view results afterward.
+Decided 2026-09: the worker runs on the owner's **desktop PC** (discrete GPU), not
+the laptop that hosts the dev server. Benchmarked on the laptop (Core Ultra 5 225H,
+Arc iGPU, KataGo 1.18.1, b18c384nbt net): ~30 visits/s on CPU and ~35–37 visits/s on
+the iGPU via OpenCL — roughly 45–55 min per 250-move game at 400 visits, too slow.
 
 - Data flow: UI queues games → `GET /api/analysis/next` hands the worker one job
   (moves in GTP coordinates, initial stones, rules, komi) and marks it `running` →
