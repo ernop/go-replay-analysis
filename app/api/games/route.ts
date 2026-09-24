@@ -47,7 +47,7 @@ export function GET(req: NextRequest) {
         : "id DESC";
 
   const sql = `SELECT * FROM games ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY ${orderBy}`;
-  let rows = db.prepare(sql).all(...args) as GameRow[];
+  const rows = db.prepare(sql).all(...args) as GameRow[];
 
   let games = rows.map((r) => rowToSummary(r, accounts));
   const person = p.get("person");

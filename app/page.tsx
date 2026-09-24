@@ -99,6 +99,7 @@ export default function LibraryPage() {
   const [queueCounts, setQueueCounts] = useState<Record<string, number> | null>(null);
   const [revealUpNext, setRevealUpNext] = useState(false);
   const [notice, setNotice] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const query = useMemo(() => {
@@ -110,19 +111,22 @@ export default function LibraryPage() {
     return p.toString();
   }, [filters]);
 
-  const refresh = useCallback(async () => {
-    try {
-      const r = await fetch(`/api/games?${query}`);
-      const d = await r.json();
-      setGames(d.games);
-    } catch {
-      setNotice("Could not load games — is the server running?");
-    }
-  }, [query]);
+  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let cancelled = false;
+    fetch(`/api/games?${query}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setGames(d.games);
+      })
+      .catch(() => {
+        if (!cancelled) setNotice("Could not load games — is the server running?");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query, reloadKey]);
 
   useEffect(() => {
     fetch("/api/accounts")

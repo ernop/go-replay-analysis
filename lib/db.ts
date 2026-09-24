@@ -18,7 +18,6 @@ const SEED_DIR = path.join(DATA_DIR, "seed-sgf");
 const STALE_RUNNING_MS = 15 * 60 * 1000;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __goReplayDb: Database.Database | undefined;
 }
 

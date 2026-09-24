@@ -196,10 +196,8 @@ export function Replay({ id }: { id: number }) {
     return () => clearInterval(t);
   }, [analysisState, id]);
 
-  // auto-reveal result at the last move
-  useEffect(() => {
-    if (idx === moveCount && moveCount > 0) setRevealResult(true);
-  }, [idx, moveCount]);
+  // result is revealed manually, or automatically at the last move
+  const resultRevealed = revealResult || (moveCount > 0 && idx >= moveCount);
 
   const setStatus = useCallback(
     (status: string) => {
@@ -325,7 +323,7 @@ export function Replay({ id }: { id: number }) {
             </div>
             <div className="text-right">
               <div className="text-xs font-bold text-gold uppercase">Result</div>
-              {revealResult ? (
+              {resultRevealed ? (
                 <div className="text-xl font-bold font-mono">{g.result || "?"}</div>
               ) : (
                 <button
