@@ -59,8 +59,9 @@ for other candidates, wood-colored board.
     Verified 2026-09: the owner's Adam is DGS handle **`adum`** ("adam miller",
     active, 428+ finished games, played `kouchi` at 2d–3d in 2004–2009). The
     handles `Adam` (an unrelated one-login 2005 account) and `rbadam` (nonexistent)
-    are NOT him. The owner's old account is `kouchi` (games 2004–2011; the ~2015
-    simul games are not in its archive). Both `adum` and `kouchi` are seeded in
+    are NOT him. The owner's old accounts are `kouchi` (games 2004–2011) and `kochi`
+    (player name "ernie (kochi)"; found 2026-09-24 in an adum game — not yet
+    registered). The ~2015 simul games are not in kouchi's archive. Both `adum` and `kouchi` are seeded in
     `data/seed-accounts.json` (loaded when the accounts table is empty). The DGS
     list API returns games newest first, so the 400 cap keeps the most recent. Password
     recovery for old DGS accounts: https://www.dragongoserver.net/forgot.php
@@ -77,7 +78,7 @@ Decision: analysis runs on the **owner's local GPU**, not in the cloud — renti
 production GPU was judged not worth the hassle. The web server is the store; any
 browser can view results afterward.
 Decided 2026-09: the worker runs on the owner's **desktop PC** (discrete GPU), not
-the laptop that hosts the dev server. Benchmarked on the laptop (Core Ultra 5 225H,
+**tvnik** (the living-room NUC) that hosts the web app. Benchmarked on tvnik (ASUS NUC15, Core Ultra 5 225H,
 Arc iGPU, KataGo 1.18.1, b18c384nbt net): ~30 visits/s on CPU and ~35–37 visits/s on
 the iGPU via OpenCL — roughly 45–55 min per 250-move game at 400 visits, too slow.
 
@@ -98,6 +99,52 @@ the iGPU via OpenCL — roughly 45–55 min per 250-move game at 400 visits, too
   delta (green/yellow/red at −2%/−6%), clickable winrate+score graph across the whole
   game, and on-board candidate overlays (blue = best, green = others, showing
   winrate% and visits; red ring = the move actually played next).
+
+## Review mode: "think carefully" moments (requested 2026-09-24, not yet built)
+
+The target experience: press **Play** and the game plays itself at a relaxed
+~10–15 s per move. Most moves pass quietly. At the **10–20 most significant
+moments per game** (split between both players) a subtitle appears *before*
+the move: **"Think carefully about Black's next move."** The viewer gets time to
+think; then the actual move is played and the board **explains it**: the move
+played, the best move, and the other real options, shown with clear colours and
+plain text ("Black played D4 — lost 4.20 pts. Best was Q10.").
+
+Rules inherited from the owner's Ogatak fork (github.com/ernop/ogatak-clear,
+its PRODUCT.md is the reference; these supersede the stock-Ogatak display
+described under *Analysis pipeline*):
+
+- **No bare signed numbers.** Values name the colour they favour: "B+2.30",
+  "W 61%". Reason: POV-dependent signs force mental translation on every move.
+- **Move quality = points thrown away by the mover, ≥ 0**, vs the best move
+  available *from that position* (parent root scoreLead − child root
+  scoreLead, sign-flipped for White, clamped at 0). Verdicts: <0.5 excellent,
+  <1.5 good, <3 inaccuracy, <6 mistake, ≥6 blunder.
+- **Candidates are shown as cost vs the best available move** (0 = best),
+  never as visits, and never relative to the global board value — a lost game
+  still has a "best move from here".
+- **One continuous best→worst gradient** (green → red), no special colour for
+  the top move. This replaces the stock blue/green scheme.
+- **"Was that move good" and "who is winning" are different questions** and
+  get separate charts: a per-move quality bar chart on a fixed axis (up =
+  White gained, down = Black gained) and a score-lead chart (W above, B below).
+- **Width** = number of candidates within 0.30 pts of the best. Width 1 means
+  only one good move exists — a strong "think carefully" signal even when the
+  player found it.
+
+Choosing moments: rank each position by the mover's points lost (relative to
+that game's typical loss) and by narrowness (low Width with a large gap to the
+2nd-best move); take the top 10–20, roughly balanced between Black and White.
+Computed from stored analysis in the app, so the thresholds can be tuned
+without re-analysing.
+
+Data this needs from the worker (beyond today's top-6): a compact cost list
+for all reported candidates (Ogatak stores the top 50), enough candidates with
+PVs to explain the choice, and visits high enough for stable costs — on the
+PC (RTX 5060 Ti, TensorRT, b10c512 transformer net, ~1,570 visits/s) ~1,000–2,000
+visits per position is ~3–6 min per game.
+
+The whole flow must work on a phone in portrait orientation.
 
 ## Technical decisions
 
