@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The public copy's build (scripts/publish-public.mjs), which a background publish may be writing.
+    ".public-build/**",
   ]),
 ]);
 

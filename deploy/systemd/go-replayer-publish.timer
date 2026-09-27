@@ -1,0 +1,10 @@
+[Unit]
+Description=Check GitHub's main a minute after each check ends, and publish go-replayer.fuseki.net when it moved
+
+[Timer]
+OnActiveSec=10s
+OnUnitInactiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

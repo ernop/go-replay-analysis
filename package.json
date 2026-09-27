@@ -9,7 +9,7 @@
     "lint": "eslint",
     "analyze": "node scripts/analyzer.mjs",
     "analyze:mock": "node scripts/analyzer.mjs --mock --once",
-    "publish:public": "node scripts/publish-public.mjs"
+    "publish:public": "flock .public-build.lock node scripts/publish-public.mjs"
   },
   "dependencies": {
     "@sabaki/go-board": "^1.4.3",

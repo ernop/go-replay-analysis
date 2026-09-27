@@ -63,7 +63,15 @@ this repo's docs, not in an agent's private memory.
   HEAD plus a snapshot of `data/go-replay.db`, uploaded with
   `~/.ssh/fuseki-go-replayer` (it can only publish this site; public half in
   `deploy/publish_from_pc.pub`, target in `deploy/target.json`). See
-  PRODUCT.md "Public copy". `--build-only` stops at `.public-build/out`.
+  PRODUCT.md "Public copy". `--build-only` stops at `.public-build/out`;
+  `--ref <commit>` builds that commit instead of HEAD.
+  `scripts/publish-on-push.mjs` — run every minute by the
+  `go-replayer-publish` systemd user timer on the PC (units in
+  `deploy/systemd/`, installed in `~/.config/systemd/user/`); publishes
+  `origin/main` whenever it moves. So pushing `main` is publishing: don't
+  also run `publish:public` after a push. Log:
+  `~/.local/state/go-replayer/publish.log`; last published commit:
+  `.git/public-published.json`.
 - `data/seed-sgf/`, `data/seed-accounts.json` — committed seed content.
   `data/go-replay.db` — the live database (gitignored).
 

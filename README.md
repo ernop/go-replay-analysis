@@ -59,7 +59,10 @@ DGS_PASSWD=your-dgs-password
 
 https://go-replayer.fuseki.net/ is a read-only copy anyone can open: every game,
 the same review screen, and each visitor's seen/unseen progress kept in their own
-browser. Only this PC can update it:
+browser. Only this PC can update it, and it does so on every push to GitHub's
+`main`: a systemd user timer checks every minute and publishes the new commit
+with this PC's games and analysis. To publish by hand (for example new analysis
+between pushes):
 
 ```bash
 npm run publish:public    # committed code + a snapshot of data/go-replay.db
@@ -68,6 +71,19 @@ npm run publish:public    # committed code + a snapshot of data/go-replay.db
 It uploads with `~/.ssh/fuseki-go-replayer`, which can only publish this site,
 then checks that the live site serves the new release. New analysis appears
 publicly after the next publish.
+
+Installing the timer (once per PC; the units are in `deploy/systemd/`):
+
+```bash
+mkdir -p ~/.local/state/go-replayer
+cp deploy/systemd/go-replayer-publish.* ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now go-replayer-publish.timer
+tail -f ~/.local/state/go-replayer/publish.log
+```
+
+Publishing uses this checkout's `node_modules`, so after a dependency change
+run `npm ci` here.
 
 ## Project layout
 

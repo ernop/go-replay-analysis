@@ -46,5 +46,6 @@ next-env.d.ts
 /data/*.db-*
 /analysis_logs/
 
-# Private build copy made by scripts/publish-public.mjs
+# Private build copy made by scripts/publish-public.mjs, and its lock
 /.public-build/
+/.public-build.lock

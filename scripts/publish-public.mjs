@@ -8,6 +8,10 @@
 //   npm run publish:public                  build, upload, verify the live VERSION
 //   npm run publish:public -- --first       first upload, before the site has HTTPS
 //   npm run publish:public -- --build-only  build .public-build/out and stop
+//   npm run publish:public -- --ref <commit>  publish that commit instead of HEAD
+//
+// Every push to GitHub's main is published by scripts/publish-on-push.mjs, so
+// this is needed by hand only to publish new analysis between pushes.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -29,7 +33,11 @@ const PUBLIC_MODE_LINE = 'export const SITE_MODE = "public" as "lan" | "public";
 const INLINE_SCRIPT = /<script>([\s\S]*?)<\/script>/g;
 const ANY_INLINE_SCRIPT = /<script(?![^>]*\ssrc=)[^>]*>/;
 
-const args = new Set(process.argv.slice(2));
+const argv = process.argv.slice(2);
+const refAt = argv.indexOf("--ref");
+const ref = refAt >= 0 ? argv.splice(refAt, 2)[1] : "HEAD";
+if (!ref) throw new Error("--ref needs a commit");
+const args = new Set(argv);
 const unknown = [...args].filter((a) => !["--first", "--build-only"].includes(a));
 if (unknown.length) throw new Error(`Unknown option: ${unknown.join(" ")}`);
 
@@ -56,14 +64,14 @@ function filesUnder(directory, prefix = "") {
 
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 
-const commit = output("git", ["-C", REPO, "rev-parse", "HEAD"]);
-if (output("git", ["-C", REPO, "status", "--porcelain"])) {
+const commit = output("git", ["-C", REPO, "rev-parse", "--verify", `${ref}^{commit}`]);
+if (ref === "HEAD" && output("git", ["-C", REPO, "status", "--porcelain"])) {
   console.log(`Publishing commit ${commit}; uncommitted changes in the working tree are not included.`);
 }
 
 fs.rmSync(BUILD, { recursive: true, force: true });
 fs.mkdirSync(path.join(BUILD, "data"), { recursive: true });
-run("git", ["-C", REPO, "archive", `--output=${path.join(BUILD, "source.tar")}`, "HEAD"]);
+run("git", ["-C", REPO, "archive", `--output=${path.join(BUILD, "source.tar")}`, commit]);
 run("tar", ["-xf", path.join(BUILD, "source.tar"), "-C", BUILD]);
 fs.rmSync(path.join(BUILD, "source.tar"));
 
