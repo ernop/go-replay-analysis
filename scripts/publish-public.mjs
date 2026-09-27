@@ -106,6 +106,19 @@ const games = JSON.parse(fs.readFileSync(path.join(OUT, "data", "library.json"),
 console.log(`Built release ${revision}: commit ${commit}, ${games} games, ${Object.keys(content).length} files.`);
 if (args.has("--build-only")) process.exit(0);
 
+async function liveVersion() {
+  const response = await fetch(`${TARGET.url}VERSION`, { redirect: "error", cache: "no-store" });
+  if (!response.ok) throw new Error(`${TARGET.url}VERSION answered HTTP ${response.status}`);
+  return (await response.text()).trim();
+}
+
+// Same games and code make the same release, which the receiver refuses to replace.
+if (!args.has("--first") && (await liveVersion()) === revision) {
+  console.log(`${TARGET.url} already serves ${revision}; nothing changed since the last publish.`);
+  fs.rmSync(BUILD, { recursive: true });
+  process.exit(0);
+}
+
 const archive = path.join(BUILD, "release.tar");
 fs.writeFileSync(path.join(BUILD, "release-files.txt"), [...Object.keys(content), "release.json"].sort().join("\n") + "\n");
 run("tar", ["--create", "--format=ustar", "--no-recursion", "--owner=0", "--group=0", "--numeric-owner",
@@ -117,11 +130,8 @@ run("ssh", ["-T", "-i", DEPLOY_KEY, "-o", "IdentitiesOnly=yes", "-o", "BatchMode
 fs.closeSync(upload);
 
 if (!args.has("--first")) {
-  const response = await fetch(`${TARGET.url}VERSION`, { redirect: "error", cache: "no-store" });
-  const live = (await response.text()).trim();
-  if (!response.ok || live !== revision) {
-    throw new Error(`Live VERSION is ${live || `HTTP ${response.status}`}, expected ${revision}`);
-  }
+  const live = await liveVersion();
+  if (live !== revision) throw new Error(`Live VERSION is ${live}, expected ${revision}`);
   console.log(`${TARGET.url} now serves ${revision}.`);
 }
 fs.rmSync(BUILD, { recursive: true });
