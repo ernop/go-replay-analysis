@@ -361,16 +361,27 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
   "i want that to autoupdate every time i push to github"). GitHub cannot
   build the site itself, because the games and analysis live only in the PC's
   database and the upload key only on the PC. A systemd user timer on the PC
-  (`deploy/systemd/`) therefore runs `scripts/publish-on-push.mjs` a minute
+  (`deploy/systemd/`) therefore runs `scripts/publish-on-change.mjs` a minute
   after each check ends. When `origin/main` has moved, it publishes exactly
   that commit, so a push from any machine counts and the working tree is left
   alone. With the PC on, the site follows a push within about two minutes;
   a push made while the PC is off is published once it is back on. A failed
   publish is retried every 15 minutes, and the log is
-  `~/.local/state/go-replayer/publish.log`. New analysis still waits for the
-  next push or a manual `npm run publish:public`.
+  `~/.local/state/go-replayer/publish.log`.
   A self-hosted GitHub Actions runner was rejected: on a public repository,
   anyone's pull request could run code on the PC.
+- **New analysis publishes too, at most every 30 minutes** (decided
+  2026-09-26, the owner's "yes please" to that offer). The same check notices
+  when the database has changed in a way the site shows: new or finished
+  analysis, games added or removed, tags, accounts. It then republishes once
+  30 minutes have passed since the last publish, so a long analysis run
+  reaches the site in half-hourly steps rather than after every batch the
+  worker posts. It compares a fingerprint of the published columns (for
+  analysis, the time of the last write and the progress, not the analysis
+  itself), so watching a game, which saves viewing progress every few seconds
+  but is not published, never triggers a build. The fingerprint only decides
+  when to build: the release's content hash still decides whether anything is
+  uploaded.
 - Game pages are `/game?id=<id>` in both builds (one static page for the public
   copy); LAN links to `/game/<id>` redirect.
 - The site's CSP allows only same-origin scripts; the publisher moves Next.js's

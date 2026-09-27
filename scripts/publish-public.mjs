@@ -10,8 +10,8 @@
 //   npm run publish:public -- --build-only  build .public-build/out and stop
 //   npm run publish:public -- --ref <commit>  publish that commit instead of HEAD
 //
-// Every push to GitHub's main is published by scripts/publish-on-push.mjs, so
-// this is needed by hand only to publish new analysis between pushes.
+// scripts/publish-on-change.mjs publishes every push to GitHub's main at once
+// and new analysis within 30 minutes, so this is rarely needed by hand.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";

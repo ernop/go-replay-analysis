@@ -1,10 +1,10 @@
 [Unit]
-Description=Publish go-replayer.fuseki.net if GitHub's main moved (go-replay-analysis/scripts/publish-on-push.mjs)
+Description=Publish go-replayer.fuseki.net if GitHub's main or the site's data changed (go-replay-analysis/scripts/publish-on-change.mjs)
 
 [Service]
 Type=oneshot
 WorkingDirectory=%h/proj/go-replay-analysis
-ExecStart=/usr/bin/node %h/proj/go-replay-analysis/scripts/publish-on-push.mjs
+ExecStart=/usr/bin/node %h/proj/go-replay-analysis/scripts/publish-on-change.mjs
 StandardOutput=append:%h/.local/state/go-replayer/publish.log
 StandardError=append:%h/.local/state/go-replayer/publish.log
 TimeoutStartSec=30min

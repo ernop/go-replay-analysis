@@ -1,5 +1,5 @@
 [Unit]
-Description=Check GitHub's main a minute after each check ends, and publish go-replayer.fuseki.net when it moved
+Description=A minute after each check ends, publish go-replayer.fuseki.net if GitHub's main or the site's data changed
 
 [Timer]
 OnActiveSec=10s
