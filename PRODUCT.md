@@ -108,9 +108,13 @@ Decision: analysis runs on the **owner's local GPU**, not in the cloud — renti
 production GPU was judged not worth the hassle. The web server is the store; any
 browser can view results afterward.
 Decided 2026-09: the worker runs on the owner's **desktop PC** (discrete GPU), not
-**tvnik** (the living-room NUC) that hosts the web app. Benchmarked on tvnik (ASUS NUC15, Core Ultra 5 225H,
+**tvnik** (the living-room NUC). Benchmarked on tvnik (ASUS NUC15, Core Ultra 5 225H,
 Arc iGPU, KataGo 1.18.1, b18c384nbt net): ~30 visits/s on CPU and ~35–37 visits/s on
 the iGPU via OpenCL — roughly 45–55 min per 250-move game at 400 visits, too slow.
+The PC also holds the library and serves the LAN app. tvnik was only a test host
+(the owner, 2026-09-26: "its fine they only be here. tvnik was just for testing"),
+so its older library is not kept in step and the analysis lives only on the PC and
+the public copy.
 
 - Data flow: UI queues games → `GET /api/analysis/next` hands the worker one job
   (moves in GTP coordinates, initial stones, rules, komi) and marks it `running` →

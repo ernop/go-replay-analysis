@@ -82,17 +82,16 @@ this repo's docs, not in an agent's private memory.
   `.env.local` or `data/go-replay.db`.
 - `cursor` — the original Cursor remote the project was started on
   (origin.cursor.com/yolo-so-be-careful/go-replay-analysis). Only tvnik's
-  checkout has it and its credentials, so "push everywhere" means pushing
-  `origin` from the PC, then on tvnik `git pull --ff-only origin main` and
-  `git push cursor main`. Brought level with GitHub on 2026-09-26.
+  checkout has it and its credentials. It was brought level with GitHub on
+  2026-09-26 (on tvnik: `git pull --ff-only origin main && git push cursor
+  main`); keeping it current is optional, and `origin` is the one to push.
 
 ## Machines
 
-- **tvnik** (living-room NUC, Linux Mint, `/home/silver/proj`) hosts the web
-  app and the database. LAN address at setup: `192.168.1.140`; the phone opens
-  `http://192.168.1.140:4517`.
 - **PC** (Ubuntu, hostname `PC`, repo at `/home/ef/proj/go-replay-analysis`)
-  runs the analysis worker. As of 2026-09-25 afternoon the GPU is an
+  is the project's home: the library database, the LAN app the phone opens
+  (`http://192.168.1.27:4517`, ethernet), the analysis worker, and the
+  public copy's publisher. As of 2026-09-25 afternoon the GPU is an
   RTX 3090 24 GB (compute capability 8.6, driver 595.91.07). The RTX 5060 Ti
   16 GB was in this same machine that morning; its August thread-sweep
   benchmark was ~1,570 visits/s. On the 3090 the same TensorRT binary and
@@ -103,21 +102,25 @@ this repo's docs, not in an agent's private memory.
   Net: `~/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz`.
   Full install story: mybrowser repo,
   `project-ideas/candidate-projects/katago-local-go-analysis.md`.
-- tvnik also has KataGo 1.18.1 (CPU + OpenCL builds) and a b18 net in
-  `~/katago/`, used once to prove the pipeline end to end. Its Intel OpenCL
-  runtime is user-local: `. ~/katago/gpu-env.sh` before the OpenCL build.
-  Too slow for real use (~30–37 visits/s).
+- **tvnik** (living-room NUC, Linux Mint, `/home/silver/proj`, LAN
+  `192.168.1.140`) was only a test host: the owner, 2026-09-26, "tvnik was
+  just for testing". Its dev server and its own older library still run at
+  `http://192.168.1.140:4517`; nothing there needs keeping in step. It also
+  has KataGo 1.18.1 (CPU + OpenCL builds) and a b18 net in `~/katago/`, used
+  once to prove the pipeline end to end; too slow for real use (~30–37
+  visits/s). Its Intel OpenCL runtime is user-local:
+  `. ~/katago/gpu-env.sh` before the OpenCL build.
 
-## Running (tvnik)
+## Running
 
-- System Node is 18, too old for Next 16. Node 22 comes from nvm (no sudo on
-  tvnik). Non-interactive shells must load it first:
-  `export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 22`
-- `npm ci`, then `npm run dev` (port 4517, bound to 0.0.0.0). `npm run lint`
-  and `npx tsc --noEmit` must pass before committing.
+- On the PC, system Node is 22: `npm ci`, then `npm run dev` (port 4517,
+  bound to 0.0.0.0). `npm run lint` and `npx tsc --noEmit` must pass before
+  committing. (tvnik's system Node is 18, so there Node 22 comes from nvm:
+  `export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 22`.)
 - Secrets: `.env.local` (gitignored) holds `DGS_USERID` / `DGS_PASSWD`; the
-  template is `.env.example`. Only the server machine needs it. The dev server
-  reads it at startup, so restart after editing.
+  template is `.env.example`. Only the server machine needs it, and so far
+  only tvnik's checkout has one: DGS game fetching on the PC needs it copied
+  here. The dev server reads it at startup, so restart after editing.
 - Do not kill the dev server with `pkill -f "next dev"` from a shell whose own
   command line contains that string; it kills the calling shell too.
 
@@ -135,7 +138,7 @@ The server never pushes to the worker; the worker pulls.
 
 Worker on the PC:
 
-    node scripts/analyzer.mjs --server http://192.168.1.140:4517 \
+    node scripts/analyzer.mjs --server http://127.0.0.1:4517 \
       --katago ~/katago/trt/katago-trt \
       --model ~/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz --visits 1500
 
@@ -173,16 +176,11 @@ Convert only at the display layer, and follow these rules:
 
 ## Current state and next work (2026-09-26)
 
-- The live library is on tvnik. Queue check 2026-09-25: 579 games with no
-  analysis, 2 done, none queued. That database holds the 9 seed games, 177
-  `kouchi` games (2004–2011), and 395 `adum` games (Adam = DGS `adum`,
-  "adam miller"). `kochi` ("ernie (kochi)") is also the owner's account and
-  is not yet registered.
-- The PC checkout has `npm ci` done. On 2026-09-25 its database was filled
-  from tvnik (`node scripts/pull-tvnik-library.mjs`: 572 DGS games plus the
-  9 seeds). A dev server on the PC (`http://192.168.1.27:4517`, ethernet) is
-  that copy, separate from tvnik's live database. DGS fetch credentials live
-  in tvnik's `.env.local`, not in this clone.
+- The library is the PC's `data/go-replay.db`, filled on 2026-09-25 from
+  tvnik's test library (`node scripts/pull-tvnik-library.mjs`: 572 DGS games
+  plus the 9 seeds, 581 in all): 177 `kouchi` games (2004–2011) and 395
+  `adum` games (Adam = DGS `adum`, "adam miller"). `kochi` ("ernie (kochi)")
+  is also the owner's account and is not yet registered.
 - The worker stores every move KataGo reports, plus the played move's value
   from the following position when KataGo did not report it. It retries a
   failed results post 6 times over about 30 s, because the dev server returns
@@ -201,11 +199,8 @@ Convert only at the display layer, and follow these rules:
   - Adam's 10 most recent games (ids 394–404; 398 and 395 were re-run
     after the worker restart).
   The phone opens `http://192.168.1.27:4517/game?id=<id>` (older
-  `/game/<id>` links redirect). Since the evening of 2026-09-26 tvnik runs
-  the current code too (its dev server reloads after a `git pull`; no
-  dependency or schema change needed one), but its database still has no
-  analysis in the new format, so analysed games are on the PC and the public
-  copy. This work was committed on 2026-09-26 together with the public copy.
+  `/game/<id>` links redirect), or the public copy. This work was committed
+  on 2026-09-26 together with the public copy.
 - Visual checks: `node scripts/review-screenshots.mjs <url> <move> [outDir]
   [mode]` saves 1920×1080, 1024×728, and 390×844 screenshots, paused and
   autoplaying, in the given board mode; guess mode adds a `-rating` shot
