@@ -269,6 +269,33 @@ PC that morning benchmarked at ~1,570 visits/s.
 
 The whole flow must work on a phone in portrait orientation.
 
+## Public copy: go-replayer.fuseki.net (decided 2026-09-26)
+
+The owner's words: "make it so that anyone visiting sees all the games that are
+there. From my PC ... that needs a special way to upload stuff to it, like when
+I want to get new updates ... everyone who's viewing it will just have their
+own local storage in their browser. It just tells them what they've seen, what
+they haven't". The owner named the host `go-replayer.fuseki.net`.
+
+- Every game in the library is published, analyzed or not, with the same
+  library filters and review screen as the LAN app.
+- Each visitor's status (new, skipped, played, done), last viewed move and
+  watched-to-end live only in their browser (localStorage key
+  `go-replayer.progress`); reaching the last move marks a new or skipped game
+  played, as in the LAN app. The owner's own progress is not published.
+- Nothing on the public copy writes: no uploads, game fetching, analysis
+  queueing or accounts page; tags show read-only.
+- Only the owner's PC publishes: `npm run publish:public` builds the committed
+  code with a snapshot of `data/go-replay.db` and uploads it with
+  `~/.ssh/fuseki-go-replayer`, a key that can only hand a release for this site
+  to Fuseki's receiver. New analysis appears publicly after the next publish.
+  A release is named by a hash of its files, so data-only updates publish.
+- Game pages are `/game?id=<id>` in both builds (one static page for the public
+  copy); LAN links to `/game/<id>` redirect.
+- The site's CSP allows only same-origin scripts; the publisher moves Next.js's
+  inline page-data scripts into `/_scripts/` files, and the page connects only
+  to its own origin.
+
 ## Technical decisions
 
 - Stack: Next.js (App Router, TypeScript), Tailwind, shadcn/ui primitives,
@@ -288,6 +315,11 @@ The whole flow must work on a phone in portrait orientation.
   Brouwer's collection (homepages.cwi.nl/~aeb/go).
 
 ## Open items
+
+- Public copy size: analysis averages about 0.6 MB per game (largest 1.2 MB),
+  and Fuseki's receiver takes at most 64 MiB per release, so roughly 100
+  analyzed games fit; beyond that the publisher must precompress the data files
+  (nginx `gzip_static`) or the receiver's limit must change.
 
 - Owner to supply usernames for Me/Carl/Adam/Gary on their servers, and the
   preferred game source to bulk-download from.

@@ -55,9 +55,24 @@ DGS_PASSWD=your-dgs-password
 ```
 - **Upload SGF** — drop any `.sgf` files into the library.
 
+## Publish the public copy
+
+https://go-replayer.fuseki.net/ is a read-only copy anyone can open: every game,
+the same review screen, and each visitor's seen/unseen progress kept in their own
+browser. Only this PC can update it:
+
+```bash
+npm run publish:public    # committed code + a snapshot of data/go-replay.db
+```
+
+It uploads with `~/.ssh/fuseki-go-replayer`, which can only publish this site,
+then checks that the live site serves the new release. New analysis appears
+publicly after the next publish.
+
 ## Project layout
 
-- `app/` — Next.js pages (library, accounts, `/game/[id]` replayer) and API routes
+- `app/` — Next.js pages (library, accounts, `/game?id=<id>` replayer), read routes
+  under `app/data/`, and write routes under `app/api/`
 - `components/` — goban canvas, replay view, move-quality and game-status charts, …
 - `lib/` — SQLite store, SGF parsing, OGS/KGS fetchers
 - `scripts/analyzer.mjs` — the KataGo analysis worker

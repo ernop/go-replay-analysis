@@ -29,9 +29,16 @@ this repo's docs, not in an agent's private memory.
 
 ## Code map
 
-- `app/` — Next.js App Router pages (`page.tsx` library, `game/[id]` replayer,
-  `accounts`) and API routes under `app/api/` (games, accounts + fetch,
-  analysis queue / next job / result posting).
+- `app/` — Next.js App Router pages (`page.tsx` library, `game/page.tsx`
+  replayer at `/game?id=<id>`, `accounts`), read routes under `app/data/`
+  (`library.json`, `games/<id>.json`; static in the public copy, live in the
+  LAN app, used by both), and write routes under `app/api/` (games, accounts +
+  fetch, analysis queue / next job / result posting; LAN only).
+- `lib/site-mode.ts` — `SITE_MODE`, "lan" or "public". Keep its one line
+  exactly as written: `scripts/publish-public.mjs` rewrites that line to build
+  the public copy. `lib/progress.ts` saves viewing progress (LAN: database,
+  public: the visitor's localStorage); `lib/library.ts` holds the library
+  filters; `lib/game-data.ts` builds the read routes' data.
 - `components/` — `replay.tsx` (replayer, panel, control bar), `goban.tsx`
   (canvas board, Ogatak look), `review-charts.tsx` (canvas ports of
   ogatak-clear's MOVE QUALITY and GAME STATUS), shadcn primitives in
@@ -49,6 +56,12 @@ this repo's docs, not in an agent's private memory.
   `scripts/katago-analysis.cfg` — its KataGo config.
   `scripts/pull-tvnik-library.mjs` — copies tvnik's games into this
   machine's database (keys `tvnik:<id>`).
+  `scripts/publish-public.mjs` (`npm run publish:public`) — publishes the
+  public copy to https://go-replayer.fuseki.net/ from this PC only: committed
+  HEAD plus a snapshot of `data/go-replay.db`, uploaded with
+  `~/.ssh/fuseki-go-replayer` (it can only publish this site; public half in
+  `deploy/publish_from_pc.pub`, target in `deploy/target.json`). See
+  PRODUCT.md "Public copy". `--build-only` stops at `.public-build/out`.
 - `data/seed-sgf/`, `data/seed-accounts.json` — committed seed content.
   `data/go-replay.db` — the live database (gitignored).
 
@@ -168,9 +181,10 @@ Convert only at the display layer, and follow these rules:
   - game 580 (tvnik game 11, kouchi vs nevizade);
   - Adam's 10 most recent games (ids 394–404; 398 and 395 were re-run
     after the worker restart).
-  The phone opens `http://192.168.1.27:4517/game/<id>`. tvnik still runs the
-  older code and has no analysis in the new format. None of this work is
-  committed yet.
+  The phone opens `http://192.168.1.27:4517/game?id=<id>` (older
+  `/game/<id>` links redirect). tvnik still runs the older code and has no
+  analysis in the new format. This work was committed on 2026-09-26 together
+  with the public copy.
 - Visual checks: `node scripts/review-screenshots.mjs <url> <move>` saves
   1920×1080, 1024×728, and 390×844 screenshots, paused and autoplaying. It
   uses Playwright from `~/proj/voice-wei/node_modules`, because Playwright is
