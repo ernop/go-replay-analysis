@@ -58,7 +58,7 @@ DGS_PASSWD=your-dgs-password
 ## Project layout
 
 - `app/` — Next.js pages (library, accounts, `/game/[id]` replayer) and API routes
-- `components/` — goban canvas, replay view, winrate graph, speed slider, …
+- `components/` — goban canvas, replay view, move-quality and game-status charts, …
 - `lib/` — SQLite store, SGF parsing, OGS/KGS fetchers
 - `scripts/analyzer.mjs` — the KataGo analysis worker
 - `data/seed-sgf/` — committed seed games; `data/go-replay.db` — runtime library (gitignored)

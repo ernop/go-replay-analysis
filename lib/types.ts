@@ -46,6 +46,11 @@ export interface AnalysisCandidate {
   scoreLead: number; // black perspective
   visits: number;
   pv: string[];
+  /**
+   * "continuation" means KataGo did not report this move and the value is the
+   * root of the position after it was played. Absent means KataGo reported it.
+   */
+  source?: "continuation";
 }
 
 export interface AnalysisPosition {
@@ -54,7 +59,10 @@ export interface AnalysisPosition {
   winrate: number;
   scoreLead: number;
   visits: number;
-  top: AnalysisCandidate[];
+  /** Every move KataGo reported, best first, plus the played move when missing. */
+  candidates?: AnalysisCandidate[];
+  /** Earlier analyses stored a capped list under this name. */
+  top?: AnalysisCandidate[];
 }
 
 export interface GameAnalysis {

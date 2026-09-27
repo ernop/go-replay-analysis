@@ -12,10 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TagEditor } from "@/components/tag-editor";
 import type { Account, GameSummary } from "@/lib/types";
 
 interface Filters {
+  analysis: string;
   status: string;
   person: string;
   winner: string;
@@ -26,7 +26,10 @@ interface Filters {
   sort: string;
 }
 
+// Only analyzed games by default: on the phone the owner almost always wants
+// a game whose review is ready.
 const DEFAULT_FILTERS: Filters = {
+  analysis: "done",
   status: "all",
   person: "all",
   winner: "any",
@@ -36,6 +39,20 @@ const DEFAULT_FILTERS: Filters = {
   q: "",
   sort: "added",
 };
+
+/** DGS stores "start,end"; the start date is what "Date played" sorts by. */
+function playedOn(g: GameSummary): string {
+  return g.datePlayed.split(",")[0] || "—";
+}
+
+/** Black first, as everywhere in Go notation. */
+function playersOf(g: GameSummary): string {
+  const b = g.blackRank ? `${g.black} ${g.blackRank}` : g.black;
+  const w = g.whiteRank ? `${g.white} ${g.whiteRank}` : g.white;
+  return `${b} vs ${w}`;
+}
+
+const TH = "py-2 pr-4 text-sm font-bold text-gold uppercase tracking-wide";
 
 const STATUS_OPTIONS = ["new", "skipped", "played", "done"];
 
@@ -221,55 +238,45 @@ export default function LibraryPage() {
     <div className="flex flex-col gap-4 w-full">
       {/* Up next */}
       {upNext && (
-        <section className="rounded border border-primary/60 bg-card p-4 flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-[260px]">
-            <h2 className="text-sm font-bold text-gold uppercase tracking-wider">Up next</h2>
-            <p className="text-2xl font-bold">
-              {upNext.black}
-              {upNext.blackRank ? ` ${upNext.blackRank}` : ""} (B) vs {upNext.white}
-              {upNext.whiteRank ? ` ${upNext.whiteRank}` : ""} (W)
-            </p>
-            <p className="text-base font-semibold">
-              {[
-                upNext.event,
-                upNext.datePlayed,
-                `${upNext.boardSize}×${upNext.boardSize}`,
-                upNext.handicap > 0 ? `HA ${upNext.handicap}` : "even",
-                upNext.source,
-              ]
-                .filter(Boolean)
-                .join(" · ")}{" "}
-              ·{" "}
-              {revealUpNext ? (
-                <span className="font-mono">{upNext.result || "?"}</span>
-              ) : (
-                <button
-                  className="underline font-bold hover:text-gold"
-                  onClick={() => setRevealUpNext(true)}
-                >
-                  reveal result
-                </button>
-              )}
-            </p>
-          </div>
-          <div className="flex gap-2">
+        <section className="rounded border border-primary/60 bg-card px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-3 sm:gap-4">
+          <h2 className="text-sm font-bold text-gold uppercase tracking-wider whitespace-nowrap">Up next</h2>
+          <span className="min-w-0 flex-1 truncate fs-body font-bold" title={playersOf(upNext)}>
+            {playersOf(upNext)}
+          </span>
+          <span className="hidden fs-body whitespace-nowrap sm:inline">{playedOn(upNext)}</span>
+          {upNext.handicap > 0 && (
+            <span className="hidden fs-body whitespace-nowrap text-gold sm:inline">H{upNext.handicap}</span>
+          )}
+          {revealUpNext ? (
+            <span className="hidden fs-body font-bold whitespace-nowrap sm:inline">{upNext.result || "?"}</span>
+          ) : (
+            <button
+              className="hidden fs-body underline font-bold whitespace-nowrap hover:text-gold sm:inline"
+              onClick={() => setRevealUpNext(true)}
+            >
+              reveal result
+            </button>
+          )}
+          <div className="flex flex-none gap-2">
             <Button
               size="lg"
               className="font-bold"
+              title="Approve & watch"
               onClick={() => router.push(`/game/${upNext.id}`)}
             >
-              <Eye /> Approve &amp; watch
+              <Eye /> <span className="hidden xl:inline">Approve &amp; watch</span>
             </Button>
             <Button
               size="lg"
               variant="secondary"
               className="font-bold"
+              title="Skip"
               onClick={() => {
                 setRevealUpNext(false);
                 patchGame(upNext.id, { status: "skipped" });
               }}
             >
-              <SkipForward /> Skip
+              <SkipForward /> <span className="hidden xl:inline">Skip</span>
             </Button>
           </div>
         </section>
@@ -277,8 +284,21 @@ export default function LibraryPage() {
 
       {/* toolbar */}
       <section className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-pressed={filters.analysis === "done"}
+          onClick={() => setF({ analysis: filters.analysis === "done" ? "all" : "done" })}
+          className={`h-9 rounded border px-3 font-bold whitespace-nowrap ${
+            filters.analysis === "done"
+              ? "border-gold bg-gold text-black"
+              : "border-border text-white hover:bg-accent"
+          }`}
+          title="Show only games whose analysis is finished"
+        >
+          {filters.analysis === "done" ? "✓ analysis done" : "analysis done"}
+        </button>
         <Select value={filters.status} onValueChange={(v) => setF({ status: v })}>
-          <SelectTrigger className="w-[120px] font-semibold">
+          <SelectTrigger className="w-auto font-semibold">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -291,7 +311,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.person} onValueChange={(v) => setF({ person: v })}>
-          <SelectTrigger className="w-[130px] font-semibold">
+          <SelectTrigger className="w-auto font-semibold">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -304,7 +324,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.winner} onValueChange={(v) => setF({ winner: v })}>
-          <SelectTrigger className="w-[120px] font-semibold">
+          <SelectTrigger className="w-auto font-semibold">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -314,7 +334,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.source} onValueChange={(v) => setF({ source: v })}>
-          <SelectTrigger className="w-[120px] font-semibold">
+          <SelectTrigger className="w-auto font-semibold">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -326,7 +346,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.size} onValueChange={(v) => setF({ size: v })}>
-          <SelectTrigger className="w-[110px] font-semibold">
+          <SelectTrigger className="w-auto font-semibold">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -337,7 +357,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.kind} onValueChange={(v) => setF({ kind: v })}>
-          <SelectTrigger className="w-[120px] font-semibold">
+          <SelectTrigger className="w-auto font-semibold">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -353,7 +373,7 @@ export default function LibraryPage() {
           className="w-[220px] font-semibold"
         />
         <Select value={filters.sort} onValueChange={(v) => setF({ sort: v })}>
-          <SelectTrigger className="w-[140px] font-semibold">
+          <SelectTrigger className="w-auto font-semibold">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -414,37 +434,39 @@ export default function LibraryPage() {
           <p className="text-lg font-semibold py-8 text-center">Loading library…</p>
         ) : games.length === 0 ? (
           <p className="text-lg font-semibold py-8 text-center">
-            No games match these filters. Upload SGF files or fetch games from the Accounts
-            tab.
+            {filters.analysis === "done"
+              ? "No analyzed games match. Turn off \u201canalysis done\u201d to see every game, or queue analysis."
+              : "No games match these filters. Upload SGF files or fetch games from the Accounts tab."}
           </p>
         ) : (
-          <table className="w-full text-left border-collapse">
+          // Rows stay one line: players take the leftover width and end in "…"
+          // when too long. Tapping them opens the game.
+          <table className="w-full table-fixed text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="border-b-2 border-border">
-                {["Players", "People", "Result", "Board", "Date", "Source", "Moves", "Status", "Analysis", "Tags", ""].map(
-                  (h) => (
-                    <th key={h} className="py-2 pr-3 text-sm font-bold text-gold uppercase tracking-wide">
-                      {h}
-                    </th>
-                  )
-                )}
+                <th className={TH}>Players</th>
+                <th className={`${TH} hidden w-[7rem] lg:table-cell`}>People</th>
+                <th className={`${TH} hidden w-[8.5rem] lg:table-cell`}>Result</th>
+                <th className={`${TH} hidden w-[7.5rem] sm:table-cell`}>Date</th>
+                <th className={`${TH} hidden w-[7rem] lg:table-cell`}>Status</th>
+                <th className={`${TH} hidden w-[7rem] xl:table-cell`}>Analysis</th>
+                <th className={`${TH} hidden w-[6rem] xl:table-cell`} />
               </tr>
             </thead>
             <tbody>
               {games.map((g) => (
                 <tr key={g.id} className="border-b border-border hover:bg-accent/60">
-                  <td className="py-2 pr-3">
+                  <td className="py-2 pr-4">
                     <button
                       onClick={() => router.push(`/game/${g.id}`)}
-                      className="text-left text-base font-bold hover:text-gold"
+                      title={playersOf(g)}
+                      className="block w-full truncate text-left text-sm font-bold hover:text-gold sm:text-base"
                     >
-                      {g.black}
-                      {g.blackRank ? ` ${g.blackRank}` : ""} vs {g.white}
-                      {g.whiteRank ? ` ${g.whiteRank}` : ""}
+                      {playersOf(g)}
+                      {g.handicap > 0 && <span className="ml-3 text-gold">H{g.handicap}</span>}
                     </button>
-                    {g.event && <div className="text-sm font-semibold">{g.event}</div>}
                   </td>
-                  <td className="py-2 pr-3">
+                  <td className="hidden py-2 pr-4 lg:table-cell">
                     {g.people.map((p) => (
                       <span
                         key={p}
@@ -454,18 +476,9 @@ export default function LibraryPage() {
                       </span>
                     ))}
                   </td>
-                  <td className="py-2 pr-3">{resultChip(g)}</td>
-                  <td className="py-2 pr-3 font-mono font-bold text-sm">
-                    {g.boardSize}×{g.boardSize}
-                    {g.handicap > 0 ? ` H${g.handicap}` : ""}
-                  </td>
-                  <td className="py-2 pr-3 font-mono font-bold text-sm">{g.datePlayed || "—"}</td>
-                  <td className="py-2 pr-3 font-semibold text-sm">{g.source}</td>
-                  <td className="py-2 pr-3 font-mono font-bold text-sm">
-                    {g.moveCount}
-                    {g.watchedToEnd ? " ✓" : g.lastViewedMove > 0 ? ` @${g.lastViewedMove}` : ""}
-                  </td>
-                  <td className="py-2 pr-3">
+                  <td className="hidden py-2 pr-4 lg:table-cell">{resultChip(g)}</td>
+                  <td className="hidden py-2 pr-4 font-bold text-sm tabular-nums sm:table-cell">{playedOn(g)}</td>
+                  <td className="hidden py-2 pr-4 lg:table-cell">
                     <select
                       value={g.status}
                       onChange={(e) => patchGame(g.id, { status: e.target.value })}
@@ -478,11 +491,8 @@ export default function LibraryPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="py-2 pr-3">{analysisBadge(g)}</td>
-                  <td className="py-2 pr-3 min-w-[120px]">
-                    <TagEditor compact tags={g.tags} onChange={(tags) => patchGame(g.id, { tags })} />
-                  </td>
-                  <td className="py-2">
+                  <td className="hidden py-2 pr-4 xl:table-cell">{analysisBadge(g)}</td>
+                  <td className="hidden py-2 xl:table-cell">
                     <Button size="sm" className="font-bold" onClick={() => router.push(`/game/${g.id}`)}>
                       Watch
                     </Button>

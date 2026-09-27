@@ -28,6 +28,7 @@ export function GET(req: NextRequest) {
     where.push("board_size = ?");
     args.push(parseInt(size, 10));
   }
+  if (p.get("analysis") === "done") where.push("analysis_state = 'done'");
   const kind = p.get("kind"); // even | handicap
   if (kind === "even") where.push("handicap = 0");
   if (kind === "handicap") where.push("handicap > 0");

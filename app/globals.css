@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-ogatak);
+  --font-mono: var(--font-ogatak);
+  --font-heading: var(--font-ogatak);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -52,9 +52,20 @@
 /*
   Ogatak-inspired dark theme (single theme, always dark).
   Rule: all neutral text is pure white; hierarchy comes from size/weight, never gray text.
+
+  Type follows ogatak-clear: one monospace family and six sizes (its
+  type_scale.js at the owner's info_font_size 28 and zoom 0.62). Use the fs-*
+  utilities below rather than ad-hoc sizes on review screens.
 */
 :root {
   color-scheme: dark;
+  --font-ogatak: "DejaVu Sans Mono", ui-monospace, Menlo, Consolas, "Liberation Mono", "Noto Sans Mono", monospace;
+  --fs-hero: 28px;
+  --fs-emph: 22px;
+  --fs-body: 17px;
+  --fs-ui: 16px;
+  --fs-caption: 14px;
+  --fs-fine: 12px;
   --background: #080808;
   --foreground: #ffffff;
   --card: #111111;
@@ -116,4 +127,61 @@
   html {
     @apply font-sans;
   }
+}
+
+@utility fs-hero {
+  font-size: var(--fs-hero);
+}
+@utility fs-emph {
+  font-size: var(--fs-emph);
+}
+@utility fs-body {
+  font-size: var(--fs-body);
+}
+@utility fs-ui {
+  font-size: var(--fs-ui);
+}
+@utility fs-caption {
+  font-size: var(--fs-caption);
+}
+@utility fs-fine {
+  font-size: var(--fs-fine);
+}
+
+@layer components {
+  /* ogatak .mr_ctl: a text control with a hover plate. */
+  .ctl {
+    cursor: pointer;
+    padding: 2px 9px;
+  }
+  .ctl:hover {
+    background-color: #222222;
+  }
+  /* ogatak .mr_metric input/select */
+  .field {
+    background-color: #181818;
+    border: 1px solid #555555;
+    color: #ffffff;
+    font: inherit;
+    padding: 2px 4px;
+  }
+  .field:focus {
+    border-color: #e0b872;
+    outline: none;
+  }
+}
+
+@keyframes autoplay-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.autoplay-progress {
+  animation-name: autoplay-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
 }

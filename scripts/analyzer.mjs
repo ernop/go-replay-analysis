@@ -68,13 +68,27 @@ async function getJob() {
   return data.job;
 }
 
+const POST_ATTEMPTS = 6;
+
+// A dev server returns 500s for a few seconds while it recompiles; retry so
+// one blip does not throw away a whole game's analysis.
 async function postResults(gameId, payload) {
-  const res = await fetch(`${args.server}/api/analysis/${gameId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`posting results failed: ${res.status}`);
+  let lastError = null;
+  for (let attempt = 1; attempt <= POST_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(`${args.server}/api/analysis/${gameId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) return;
+      lastError = new Error(`posting results failed: ${res.status}`);
+    } catch (err) {
+      lastError = err;
+    }
+    if (attempt < POST_ATTEMPTS) await sleep(2000 * attempt);
+  }
+  throw lastError;
 }
 
 /* ------------------------------------------------------------------ */
@@ -115,7 +129,7 @@ function mockAnalyze(job) {
         pv: Array.from({ length: 5 }, () => randomGtp(job.boardSize)),
       });
     }
-    positions.push({ turn, winrate: wr, scoreLead, visits: args.visits, top });
+    positions.push({ turn, winrate: wr, scoreLead, visits: args.visits, candidates: top });
   }
   return positions;
 }
@@ -184,21 +198,49 @@ function startKatago() {
 
 function toPosition(msg) {
   // Config uses reportAnalysisWinratesAs = BLACK, so values are already
-  // from Black's perspective.
+  // from Black's perspective. Keep every move KataGo reported. A display
+  // cap belongs in the UI; dropping moves here loses the one that was played.
   const root = msg.rootInfo ?? {};
   return {
     turn: msg.turnNumber,
     winrate: root.winrate ?? 0.5,
     scoreLead: root.scoreLead ?? 0,
     visits: root.visits ?? 0,
-    top: (msg.moveInfos ?? []).slice(0, 6).map((mi) => ({
+    candidates: (msg.moveInfos ?? []).map((mi) => ({
       move: mi.move,
       winrate: mi.winrate ?? 0.5,
       scoreLead: mi.scoreLead ?? 0,
       visits: mi.visits ?? 0,
-      pv: (mi.pv ?? []).slice(0, 10),
+      pv: (mi.pv ?? []).slice(0, 8),
     })),
   };
+}
+
+function sameMove(a, b) {
+  return String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+}
+
+/** Value of the move that was played, when KataGo gave it no visits. */
+function attachPlayedMoves(positions, moves) {
+  const byTurn = new Map(positions.map((p) => [p.turn, p]));
+  for (let t = 0; t < moves.length; t++) {
+    const pos = byTurn.get(t);
+    const child = byTurn.get(t + 1);
+    const played = moves[t][1];
+    if (!pos || !child) {
+      console.error(`missing analysis for the move played at turn ${t} (${played})`);
+      continue;
+    }
+    if (pos.candidates.some((c) => sameMove(c.move, played))) continue;
+    pos.candidates.push({
+      move: played,
+      winrate: child.winrate,
+      scoreLead: child.scoreLead,
+      visits: 0,
+      pv: [],
+      source: "continuation",
+    });
+  }
 }
 
 async function runKatagoJob(job) {
@@ -218,22 +260,26 @@ async function runKatagoJob(job) {
 
   let buffer = [];
   let postedCount = 0;
-  const flush = async (done) => {
-    if (buffer.length === 0 && !done) return;
+  let chain = Promise.resolve();
+  const flush = (done) => {
+    if (buffer.length === 0 && !done) return chain;
     const positions = buffer;
     buffer = [];
     postedCount += positions.length;
-    await postResults(job.gameId, {
-      engine: "KataGo",
-      model: args.model ? path.basename(args.model) : "engine default",
-      maxVisits: args.visits,
-      positions,
-      done,
+    chain = chain.then(async () => {
+      await postResults(job.gameId, {
+        engine: "KataGo",
+        model: args.model ? path.basename(args.model) : "engine default",
+        maxVisits: args.visits,
+        positions,
+        done,
+      });
+      process.stdout.write(`\r  posted ${postedCount}/${total} positions`);
     });
-    process.stdout.write(`\r  posted ${postedCount}/${total} positions`);
+    return chain;
   };
 
-  await new Promise((resolve, reject) => {
+  const received = await new Promise((resolve, reject) => {
     pending.set(query.id, {
       expected: total,
       received: [],
@@ -246,7 +292,16 @@ async function runKatagoJob(job) {
     });
     katago.stdin.write(JSON.stringify(query) + "\n");
   });
-  await flush(true);
+  await flush(false);
+  const positions = received.map(toPosition).sort((a, b) => a.turn - b.turn);
+  attachPlayedMoves(positions, job.moves);
+  await postResults(job.gameId, {
+    engine: "KataGo",
+    model: args.model ? path.basename(args.model) : "engine default",
+    maxVisits: args.visits,
+    positions,
+    done: true,
+  });
   console.log(`\ngame ${job.gameId} done`);
 }
 

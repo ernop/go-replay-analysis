@@ -32,13 +32,23 @@ this repo's docs, not in an agent's private memory.
 - `app/` — Next.js App Router pages (`page.tsx` library, `game/[id]` replayer,
   `accounts`) and API routes under `app/api/` (games, accounts + fetch,
   analysis queue / next job / result posting).
-- `components/` — `replay.tsx` (replayer + controls), `goban.tsx` (canvas
-  board), `winrate-graph.tsx`, shadcn primitives in `components/ui/`.
+- `components/` — `replay.tsx` (replayer, panel, control bar), `goban.tsx`
+  (canvas board, Ogatak look), `review-charts.tsx` (canvas ports of
+  ogatak-clear's MOVE QUALITY and GAME STATUS), shadcn primitives in
+  `components/ui/`. The review screen is specified in PRODUCT.md "Review
+  screen"; its reference implementation is `~/proj/ogatak-clear/src/modules/`
+  (`move_report.js`, `board_drawer.js`, `colour_gradients.js`, `utils.js`).
 - `lib/db.ts` — SQLite schema, seeding, ingest, analysis queue.
-  `lib/sgf.ts` — SGF parsing. `lib/types.ts` — shared types, tracked people.
+  `lib/sgf.ts` — SGF parsing (server only; `@sabaki/sgf` needs `fs`).
+  `lib/gtp.ts` — GTP coordinates, safe to import in the browser.
+  `lib/review.ts` — candidate selection, Delta/Visits labels, gradient.
+  `lib/use-stored.ts` — small settings kept in the browser's localStorage.
+  `lib/types.ts` — shared types, tracked people.
 - `lib/fetchers/{ogs,kgs,dgs}.ts` — game fetchers per server.
 - `scripts/analyzer.mjs` — the analysis worker (runs on the PC);
   `scripts/katago-analysis.cfg` — its KataGo config.
+  `scripts/pull-tvnik-library.mjs` — copies tvnik's games into this
+  machine's database (keys `tvnik:<id>`).
 - `data/seed-sgf/`, `data/seed-accounts.json` — committed seed content.
   `data/go-replay.db` — the live database (gitignored).
 
@@ -53,9 +63,16 @@ this repo's docs, not in an agent's private memory.
 - **tvnik** (living-room NUC, Linux Mint, `/home/silver/proj`) hosts the web
   app and the database. LAN address at setup: `192.168.1.140`; the phone opens
   `http://192.168.1.140:4517`.
-- **PC** (Ubuntu, RTX 5060 Ti 16 GB) runs only the analysis worker. KataGo
-  TensorRT wrapper at `~/katago/trt/katago-trt`, transformer net at
-  `~/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz` (~1,570 visits/s).
+- **PC** (Ubuntu, hostname `PC`, repo at `/home/ef/proj/go-replay-analysis`)
+  runs the analysis worker. As of 2026-09-25 afternoon the GPU is an
+  RTX 3090 24 GB (compute capability 8.6, driver 595.91.07). The RTX 5060 Ti
+  16 GB was in this same machine that morning; its August thread-sweep
+  benchmark was ~1,570 visits/s. On the 3090 the same TensorRT binary and
+  net, using `scripts/katago-analysis.cfg` (16 search threads), finished one
+  2,000-visit empty-board query at about 1,410 visits/s. The engine cache for
+  this card is `~/.katago/trtcache/trt-101601_gpu-1042a4e3_…` (built
+  2026-09-25 14:20). KataGo TensorRT wrapper: `~/katago/trt/katago-trt`.
+  Net: `~/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz`.
   Full install story: mybrowser repo,
   `project-ideas/candidate-projects/katago-local-go-analysis.md`.
 - tvnik also has KataGo 1.18.1 (CPU + OpenCL builds) and a b18 net in
@@ -111,24 +128,54 @@ Convert only at the display layer, and follow these rules:
   always >= 0 (parent root scoreLead − child root scoreLead, flipped for
   White, clamped at 0). Verdicts: <0.5 excellent, <1.5 good, <3 inaccuracy,
   <6 mistake, >=6 blunder.
-- Candidates are shown as cost vs the best move from this position (0 =
-  best), never as visits, never relative to the global board value.
-  Visibility depends only on cost, not visits.
-- One continuous best→worst gradient; no special colour for the top move.
-  The current blue/green scheme and the combined winrate+score graph are
-  stock-Ogatak leftovers to be replaced.
+- Candidates are shown relative to the best move from this position (0 =
+  best), never relative to the global board value. Circles carry Ogatak's
+  "Delta + Visits" labels (the owner's Ogatak setting); which moves appear is
+  Ogatak's count mode, the best plus the 5 lowest-cost moves with at least 1%
+  of the position's visits. Details and reasons: PRODUCT.md "Review screen".
+- One continuous best→worst gradient (ogatak-clear `green_red`); no special
+  colour for the top move.
+- Never show the future: no next-move marker, charts end at the current
+  move, result hidden until revealed.
 - "Was that move good" (per-move quality bars, fixed axis: up = White gained,
   down = Black gained) and "who is winning" (score-lead chart) are separate
   charts, never merged.
 - Width = candidates within 0.30 pts of best; Width 1 = only one good move.
 
-## Current state and next work (2026-09-24)
+## Current state and next work (2026-09-26)
 
-- Library: 9 seed games, 177 `kouchi` games (2004–2011), 395 `adum` games
-  (Adam = DGS `adum`, "adam miller"). `kochi` ("ernie (kochi)") is also the
-  owner's account and is not yet registered.
-- Next: review mode ("think carefully" moments), specified in PRODUCT.md.
-  First step is extending the worker to store compact costs for all reported
-  candidates (today it keeps the top 6), so Width and the reveal can be
-  computed. Open questions for the owner: pause-until-tap vs timed pause at a
-  key moment; whether "found the only good move" moments count.
+- The live library is on tvnik. Queue check 2026-09-25: 579 games with no
+  analysis, 2 done, none queued. That database holds the 9 seed games, 177
+  `kouchi` games (2004–2011), and 395 `adum` games (Adam = DGS `adum`,
+  "adam miller"). `kochi` ("ernie (kochi)") is also the owner's account and
+  is not yet registered.
+- The PC checkout has `npm ci` done. On 2026-09-25 its database was filled
+  from tvnik (`node scripts/pull-tvnik-library.mjs`: 572 DGS games plus the
+  9 seeds). A dev server on the PC (`http://192.168.1.27:4517`, ethernet) is
+  that copy, separate from tvnik's live database. DGS fetch credentials live
+  in tvnik's `.env.local`, not in this clone.
+- The worker stores every move KataGo reports, plus the played move's value
+  from the following position when KataGo did not report it. It retries a
+  failed results post 6 times over about 30 s, because the dev server returns
+  500s for a few seconds while it recompiles; before that fix, one such blip
+  lost game 398's run.
+- The review screen was rebuilt on 2026-09-26 to follow ogatak-clear and to
+  never show the future (PRODUCT.md "Review screen"). "Think carefully"
+  pauses are still unbuilt. Open questions: pause-until-tap vs timed pause;
+  whether "found the only good move" moments count.
+- Analyzed on the PC as of 2026-09-26, at 1,000 visits (about 2 min per game
+  on the 3090):
+  - game 580 (tvnik game 11, kouchi vs nevizade);
+  - Adam's 10 most recent games (ids 394–404; 398 and 395 were re-run
+    after the worker restart).
+  The phone opens `http://192.168.1.27:4517/game/<id>`. tvnik still runs the
+  older code and has no analysis in the new format. None of this work is
+  committed yet.
+- Visual checks: `node scripts/review-screenshots.mjs <url> <move>` saves
+  1920×1080, 1024×728, and 390×844 screenshots, paused and autoplaying. It
+  uses Playwright from `~/proj/voice-wei/node_modules`, because Playwright is
+  not a dependency here. Prefer it to the in-IDE browser pane: while that
+  pane is hidden it cannot take screenshots, and ResizeObserver never fires
+  in it.
+- Resetting a test game's progress: `last_viewed_move` and `watched_to_end`
+  are set by just opening a game, so undo them after visual checks.

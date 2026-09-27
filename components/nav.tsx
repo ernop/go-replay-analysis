@@ -13,8 +13,8 @@ export function Nav() {
   const pathname = usePathname();
   return (
     <header className="w-full border-b border-border bg-card">
-      <div className="flex items-center gap-6 px-4 md:px-6 h-14">
-        <Link href="/" className="text-xl font-bold tracking-wide text-gold">
+      <div className="flex items-center gap-3 px-2 sm:gap-6 sm:px-4 md:px-6 h-14">
+        <Link href="/" className="whitespace-nowrap text-base font-bold tracking-wide text-gold sm:text-xl">
           Go Game Replay
         </Link>
         <nav className="flex items-center gap-1">
@@ -26,7 +26,7 @@ export function Nav() {
                 key={tab.href}
                 href={tab.href}
                 className={cn(
-                  "px-3 py-1.5 rounded text-base font-semibold",
+                  "px-2 sm:px-3 py-1.5 rounded text-base font-semibold",
                   active
                     ? "bg-primary text-primary-foreground"
                     : "text-foreground hover:bg-accent"
