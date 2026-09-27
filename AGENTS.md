@@ -39,8 +39,9 @@ this repo's docs, not in an agent's private memory.
   the public copy. `lib/progress.ts` saves viewing progress (LAN: database,
   public: the visitor's localStorage); `lib/library.ts` holds the library
   filters; `lib/game-data.ts` builds the read routes' data.
-- `components/` — `replay.tsx` (replayer, panel, control bar), `goban.tsx`
-  (canvas board, Ogatak look), `review-charts.tsx` (canvas ports of
+- `components/` — `replay.tsx` (replayer, panel, control bar, board modes),
+  `goban.tsx` (canvas board, Ogatak look; stones on one canvas, circles on a
+  layer above that guess mode fades), `review-charts.tsx` (canvas ports of
   ogatak-clear's MOVE QUALITY and GAME STATUS), shadcn primitives in
   `components/ui/`. The review screen is specified in PRODUCT.md "Review
   screen"; its reference implementation is `~/proj/ogatak-clear/src/modules/`
@@ -48,7 +49,8 @@ this repo's docs, not in an agent's private memory.
 - `lib/db.ts` — SQLite schema, seeding, ingest, analysis queue.
   `lib/sgf.ts` — SGF parsing (server only; `@sabaki/sgf` needs `fs`).
   `lib/gtp.ts` — GTP coordinates, safe to import in the browser.
-  `lib/review.ts` — candidate selection, Delta/Visits labels, gradient.
+  `lib/review.ts` — candidate selection, Delta/Visits labels, gradient, and
+  guess mode's rating of a played move (`rateMove`).
   `lib/use-stored.ts` — small settings kept in the browser's localStorage.
   `lib/types.ts` — shared types, tracked people.
 - `lib/fetchers/{ogs,kgs,dgs}.ts` — game fetchers per server.
@@ -149,7 +151,8 @@ Convert only at the display layer, and follow these rules:
 - One continuous best→worst gradient (ogatak-clear `green_red`); no special
   colour for the top move.
 - Never show the future: no next-move marker, charts end at the current
-  move, result hidden until revealed.
+  move, result hidden until revealed. Guess mode shows a move's own value
+  only once that move is on the board (PRODUCT.md "Guess mode").
 - "Was that move good" (per-move quality bars, fixed axis: up = White gained,
   down = Black gained) and "who is winning" (score-lead chart) are separate
   charts, never merged.
@@ -173,9 +176,12 @@ Convert only at the display layer, and follow these rules:
   500s for a few seconds while it recompiles; before that fix, one such blip
   lost game 398's run.
 - The review screen was rebuilt on 2026-09-26 to follow ogatak-clear and to
-  never show the future (PRODUCT.md "Review screen"). "Think carefully"
-  pauses are still unbuilt. Open questions: pause-until-tap vs timed pause;
-  whether "found the only good move" moments count.
+  never show the future (PRODUCT.md "Review screen"). Guess mode was added
+  the same evening (PRODUCT.md "Guess mode"): the board stays clean before
+  each move, then briefly shows the move's rating and the mover's other
+  options. "Think carefully" pauses, which would build on it, are still
+  unbuilt. Open questions: pause-until-tap vs timed pause; whether "found the
+  only good move" moments count.
 - Analyzed on the PC as of 2026-09-26, at 1,000 visits (about 2 min per game
   on the 3090):
   - game 580 (tvnik game 11, kouchi vs nevizade);
@@ -185,11 +191,15 @@ Convert only at the display layer, and follow these rules:
   `/game/<id>` links redirect). tvnik still runs the older code and has no
   analysis in the new format. This work was committed on 2026-09-26 together
   with the public copy.
-- Visual checks: `node scripts/review-screenshots.mjs <url> <move>` saves
-  1920×1080, 1024×728, and 390×844 screenshots, paused and autoplaying. It
-  uses Playwright from `~/proj/voice-wei/node_modules`, because Playwright is
-  not a dependency here. Prefer it to the in-IDE browser pane: while that
-  pane is hidden it cannot take screenshots, and ResizeObserver never fires
-  in it.
+- Visual checks: `node scripts/review-screenshots.mjs <url> <move> [outDir]
+  [mode]` saves 1920×1080, 1024×728, and 390×844 screenshots, paused and
+  autoplaying, in the given board mode; guess mode adds a `-rating` shot
+  while the move's rating shows. It uses Playwright from
+  `~/proj/voice-wei/node_modules`, because Playwright is not a dependency
+  here. Prefer it to the in-IDE browser pane: while that pane is hidden it
+  cannot take screenshots, and ResizeObserver never fires in it.
 - Resetting a test game's progress: `last_viewed_move` and `watched_to_end`
-  are set by just opening a game, so undo them after visual checks.
+  are set by just opening a game. The screenshot script puts
+  `last_viewed_move` back itself; `watched_to_end` cannot be unset through
+  the API, so avoid visual checks at a game's last move unless it is already
+  watched.

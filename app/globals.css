@@ -185,3 +185,38 @@
   animation-timing-function: linear;
   animation-fill-mode: forwards;
 }
+
+/*
+  Guess mode: a move's rating fades in once its stone has visibly landed
+  (reveal-in waits 200ms; reveal-now, used when the viewer asks for it, does
+  not) and fades away when its time is up.
+*/
+@keyframes reveal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes reveal-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.reveal-in {
+  animation: reveal-fade-in 250ms ease-out 200ms both;
+}
+
+.reveal-now {
+  animation: reveal-fade-in 150ms ease-out both;
+}
+
+.reveal-out {
+  animation: reveal-fade-out 500ms ease-in forwards;
+}

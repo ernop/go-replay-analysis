@@ -28,8 +28,8 @@ the reason is written below.
    slider gave too much room to a minor setting. While playing, a gold bar
    under the board fills toward the next move, so a move never lands without
    warning. Each move gets its own timer, so the bar and the move stay in step.
-   The speed, the candidates on/off toggle, and each chart's scale and window
-   are remembered in the browser.
+   The speed, the board mode (see "Guess mode"), the reveal time, and each
+   chart's scale and window are remembered in the browser.
 4. **Begin analysis** (library toolbar) queues every unanalyzed game. A separate
    worker process on the GPU machine drains the queue and posts results back to the
    server, so analysis is *pre-computed* and viewable later from any device (e.g.
@@ -135,8 +135,9 @@ the iGPU via OpenCL — roughly 45–55 min per 250-move game at 400 visits, too
 screen may depend on moves not yet reached. There is no marker on the move
 that will be played next. The charts end at the current move. The worker's
 stored value for a played move KataGo did not report (`source:
-"continuation"`) is never drawn as a candidate. The result stays behind "•••"
-until revealed or until the last move.
+"continuation"`) is never drawn as a candidate before the move; guess mode
+shows the played move's value only once it is on the board. The result stays
+behind "•••" until revealed or until the last move.
 
 **Board** (ogatak `board_drawer.js` with the owner's config):
 
@@ -159,7 +160,9 @@ until revealed or until the last move.
   move) and "Visits". This matches the owner's Ogatak setting
   `numbers: "Delta + Visits"`. The text is sized as in Ogatak's
   `board_font_chooser`, so "999" fills 59% of a square.
-- A "candidates on/off" toggle hides the circles.
+- A "mode" dropdown chooses what the board shows: `analysis` (these
+  circles, for the side to move), `guess` (see "Guess mode"), or `off`
+  (stones only; it replaced the "candidates on/off" toggle).
 
 **Panel** (everything right of the board on desktop; below it on phones),
 top to bottom:
@@ -169,7 +172,8 @@ top to bottom:
   narrower than 560 px the two boxes sit side by side and the info goes
   underneath.
 - **Control bar:** navigation, the move counter, the speed dropdown, and the
-  candidates toggle.
+  mode dropdown. In guess mode it also holds the last move's "lost" readout
+  and the reveal dropdown.
 - **MOVE QUALITY:** a port of ogatak `draw_quality`. One bar per move fills
   its whole slot. Up means White gained, measured as the drop in Black's
   score lead during the move. Black's moves are grey and White's are white.
@@ -221,6 +225,69 @@ top to bottom:
 - The Next.js dev badge is off (`devIndicators: false`) because it covered
   text on phones.
 - Checked by Playwright screenshots at 1920×1080, 1024×728, and 390×844.
+
+## Guess mode (decided 2026-09-26)
+
+The owner's words: "the main mode showing analysis is fine but i want another
+'i guess' mode where AFTER the move, it shows the value (loss) it had, and
+interesting alternatives, momentarily (controllable). I want to be able to
+watch/review in this mode, too."
+
+Guess mode is analysis mode's circles shown after the move instead of before
+it, plus a rating of the move that was played. The viewer guesses each move on
+a clean board, then sees how the real move compared.
+
+- **Before a move:** stones and the last-move dot only. Nothing on the board
+  depends on the next move.
+- **When a move lands** (stepping forward, autoplay, or jumping forward with
+  End, ↑ or a chart click), the stone appears first. About 0.2 s later the
+  rating fades in:
+  - The mover's other options: the circles analysis mode showed for that
+    position (the engine's first move plus the 5 lowest-cost moves, the same
+    visit minimum, Delta + Visits), minus the point that was played.
+  - The played stone: a disc in its gradient colour carrying its Delta, laid
+    over the stone, which shows around it as a rim, like Ogatak's next-move
+    ring. A move worse than every alternative sets the far end of the colour
+    scale, so it never shares their colour (ogatak-clear rule 6).
+  - Next to the move counter: "lost 2.30", with the value as a black-on-colour
+    badge in the move's gradient colour ("pass, lost …" for a pass). Board
+    labels are tiny on a phone (19 px squares), so this is the legible copy.
+    Its space is kept while empty, so nothing shifts when it appears.
+- **How long:** "reveal [3 s]": 1, 2, 3, 5 or 8 s, or "hold" (until the next
+  move). The default 3 s is the owner's "momentarily". The time counts from
+  when the rating has fully faded in; it then fades out over 0.5 s.
+- **Tapping the board** shows the last move's rating again, or hides it early.
+- **Going back** (←, ↓, Home, or a chart click on an earlier move) shows no
+  rating, so the board is clean for guessing that position again; → brings
+  the move back with its rating. Opening a game at its saved move shows none.
+- **Autoplay:** "every N s" stays the time between moves. The rating takes the
+  start of each interval and the rest is guessing time: at the default 10 s
+  and 3 s, about 6 s of clean board. With "hold", or a reveal longer than the
+  interval, the next move replaces the rating.
+- Changing mode clears any rating; after switching to guess mode, nothing shows
+  until the next move lands. The charts are unchanged: they end at the current
+  move, so the move's quality bar appears as it lands.
+
+**Values.** The played move and its alternatives are measured the same way:
+points below the engine's first move in the position the mover faced, as on
+the analysis-mode circles. The played move's own score from that search is
+used when it had the board's visit minimum (1% of the position's visits).
+Below that its score is unsettled, and the position after the move, which had
+a full search of its own, supplies it. Measured 2026-09-26 on the 11 analysed
+games (1,919 moves): 10% of played moves were under the minimum, and a quarter
+of those were a point or more from the following position's score, against 4%
+of better-visited moves. Another 11% were never reported by KataGo; the
+worker's `continuation` value for those is the following position's score too.
+
+So "lost" can differ from the MOVE QUALITY bar for the same move, which is the
+change in the root score across the move (ogatak-clear's definition): by more
+than 0.5 points on 18% of those moves, and by more than 1 point on 6%. The
+rating uses the candidates' measure so that the played move can be compared
+directly with the options drawn around it.
+
+Guess mode is the base for the "think carefully" moments below: they would add
+a subtitle and a longer pause before selected moves, and after the move they
+show this same rating.
 
 ## Review mode: "think carefully" moments (requested 2026-09-24, not yet built)
 

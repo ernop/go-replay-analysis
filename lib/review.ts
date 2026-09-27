@@ -60,6 +60,63 @@ export function selectCandidates(
   return { shown, scale: Math.max(0.5, ...shown.map((s) => s.cost)) };
 }
 
+function sameMove(a: string, b: string): boolean {
+  return a.trim().toUpperCase() === b.trim().toUpperCase();
+}
+
+/**
+ * The played move's score (Black-POV), comparable with the other candidates
+ * of the position it was played from. KataGo's own value is used only when
+ * the move had the board's minimum visits; below that it is unsettled, and
+ * the position after the move, which had a full search of its own, values
+ * it instead (PRODUCT.md "Guess mode").
+ */
+export function playedMoveLead(
+  parent: AnalysisPosition,
+  child: AnalysisPosition | undefined,
+  played: string
+): number | null {
+  const entry = (parent.candidates ?? parent.top ?? []).find((c) => sameMove(c.move, played));
+  if (entry && entry.source !== "continuation" && entry.visits >= candidateMinVisits(parent.visits)) {
+    return entry.scoreLead;
+  }
+  return child?.scoreLead ?? entry?.scoreLead ?? null;
+}
+
+export interface MoveRating {
+  /** The mover's other options, as the board showed them before the move. */
+  alternatives: BoardCandidate[];
+  bestLead: number;
+  playedLead: number;
+  /** Points the move threw away, >= 0. */
+  playedCost: number;
+  /** Gradient scale; includes the played move, so a move worse than every alternative ends up at the far end. */
+  scale: number;
+}
+
+/** How a played move compares with the options the mover had; null without analysis. */
+export function rateMove(
+  parent: AnalysisPosition | undefined,
+  child: AnalysisPosition | undefined,
+  played: string,
+  mover: "B" | "W"
+): MoveRating | null {
+  const infos = positionCandidates(parent);
+  if (!parent || infos.length === 0) return null;
+  const playedLead = playedMoveLead(parent, child, played);
+  if (playedLead === null) return null;
+  const { shown, scale } = selectCandidates(infos, mover, parent.visits);
+  const bestLead = infos[0].scoreLead;
+  const playedCost = candidateCost(bestLead, playedLead, mover);
+  return {
+    alternatives: shown.filter((s) => !sameMove(s.candidate.move, played)),
+    bestLead,
+    playedLead,
+    playedCost,
+    scale: Math.max(scale, playedCost),
+  };
+}
+
 /** ogatak "Delta": this move's score minus the best move's, for the side to move. */
 export function deltaLabel(bestLead: number, lead: number, side: "B" | "W"): string {
   const val = side === "B" ? lead - bestLead : bestLead - lead;
