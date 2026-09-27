@@ -118,9 +118,9 @@ this repo's docs, not in an agent's private memory.
   committing. (tvnik's system Node is 18, so there Node 22 comes from nvm:
   `export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 22`.)
 - Secrets: `.env.local` (gitignored) holds `DGS_USERID` / `DGS_PASSWD`; the
-  template is `.env.example`. Only the server machine needs it, and so far
-  only tvnik's checkout has one: DGS game fetching on the PC needs it copied
-  here. The dev server reads it at startup, so restart after editing.
+  template is `.env.example`. Only the server machine needs it: the PC's
+  was copied from tvnik's on 2026-09-26, and its DGS login was checked from
+  the PC. The dev server reads it at startup, so restart after editing.
 - Do not kill the dev server with `pkill -f "next dev"` from a shell whose own
   command line contains that string; it kills the calling shell too.
 
