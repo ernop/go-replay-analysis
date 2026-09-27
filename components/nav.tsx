@@ -2,12 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SITE_MODE } from "@/lib/site-mode";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { href: "/", label: "Library" },
-  { href: "/accounts", label: "Accounts" },
-];
+// Accounts drive game fetching, which only the owner's LAN app does.
+const TABS =
+  SITE_MODE === "lan"
+    ? [
+        { href: "/", label: "Library" },
+        { href: "/accounts", label: "Accounts" },
+      ]
+    : [{ href: "/", label: "Library" }];
 
 export function Nav() {
   const pathname = usePathname();

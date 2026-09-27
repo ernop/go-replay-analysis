@@ -12,23 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Account, GameSummary } from "@/lib/types";
-
-interface Filters {
-  analysis: string;
-  status: string;
-  person: string;
-  winner: string;
-  source: string;
-  size: string;
-  kind: string;
-  q: string;
-  sort: string;
-}
+import { filterGames, gameHref, type LibraryData, type LibraryFilters } from "@/lib/library";
+import { saveProgress, withViewerProgress } from "@/lib/progress";
+import { SITE_MODE } from "@/lib/site-mode";
+import type { GameStatus, GameSummary } from "@/lib/types";
 
 // Only analyzed games by default: on the phone the owner almost always wants
 // a game whose review is ready.
-const DEFAULT_FILTERS: Filters = {
+const DEFAULT_FILTERS: LibraryFilters = {
   analysis: "done",
   status: "all",
   person: "all",
@@ -110,50 +101,43 @@ function analysisBadge(g: GameSummary) {
 
 export default function LibraryPage() {
   const router = useRouter();
-  const [games, setGames] = useState<GameSummary[] | null>(null);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [library, setLibrary] = useState<LibraryData | null>(null);
+  const [filters, setFilters] = useState<LibraryFilters>(DEFAULT_FILTERS);
   const [queueCounts, setQueueCounts] = useState<Record<string, number> | null>(null);
   const [revealUpNext, setRevealUpNext] = useState(false);
   const [notice, setNotice] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const query = useMemo(() => {
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries(filters)) {
-      if (v && v !== "all" && v !== "any") p.set(k, v);
-    }
-    if (filters.sort) p.set("sort", filters.sort);
-    return p.toString();
-  }, [filters]);
-
   const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/games?${query}`)
+    fetch("/data/library.json")
       .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) setGames(d.games);
+      .then((d: LibraryData) => {
+        if (!cancelled) setLibrary(d);
       })
       .catch(() => {
-        if (!cancelled) setNotice("Could not load games — is the server running?");
+        if (!cancelled)
+          setNotice(
+            SITE_MODE === "lan" ? "Could not load games — is the server running?" : "Could not load the game library."
+          );
       });
     return () => {
       cancelled = true;
     };
-  }, [query, reloadKey]);
+  }, [reloadKey]);
 
-  useEffect(() => {
-    fetch("/api/accounts")
-      .then((r) => r.json())
-      .then((d) => setAccounts(d.accounts))
-      .catch(() => {});
-  }, []);
+  const games = useMemo(
+    () => (library ? filterGames(library.games.map(withViewerProgress), filters) : null),
+    [library, filters]
+  );
 
   // poll analysis queue; refresh the table while work is in flight
   useEffect(() => {
+    // The public copy is a snapshot; its analysis never changes in place.
+    if (SITE_MODE === "public") return;
     let active = true;
     const tick = async () => {
       try {
@@ -172,24 +156,16 @@ export default function LibraryPage() {
     };
   }, [refresh]);
 
-  const people = useMemo(() => {
-    const set = new Set<string>();
-    for (const a of accounts) set.add(a.person);
-    return [...set];
-  }, [accounts]);
+  const people = library?.people ?? [];
 
   const upNext = useMemo(
     () => (games ?? []).find((g) => g.status === "new") ?? null,
     [games]
   );
 
-  const patchGame = useCallback(
-    async (id: number, body: object) => {
-      await fetch(`/api/games/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+  const setStatus = useCallback(
+    async (id: number, status: GameStatus) => {
+      await saveProgress(id, { status });
       refresh();
     },
     [refresh]
@@ -232,7 +208,7 @@ export default function LibraryPage() {
     [refresh]
   );
 
-  const setF = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+  const setF = (patch: Partial<LibraryFilters>) => setFilters((f) => ({ ...f, ...patch }));
 
   return (
     <div className="flex flex-col gap-4 w-full">
@@ -262,7 +238,7 @@ export default function LibraryPage() {
               size="lg"
               className="font-bold"
               title="Approve & watch"
-              onClick={() => router.push(`/game/${upNext.id}`)}
+              onClick={() => router.push(gameHref(upNext.id))}
             >
               <Eye /> <span className="hidden xl:inline">Approve &amp; watch</span>
             </Button>
@@ -273,7 +249,7 @@ export default function LibraryPage() {
               title="Skip"
               onClick={() => {
                 setRevealUpNext(false);
-                patchGame(upNext.id, { status: "skipped" });
+                setStatus(upNext.id, "skipped");
               }}
             >
               <SkipForward /> <span className="hidden xl:inline">Skip</span>
@@ -385,23 +361,27 @@ export default function LibraryPage() {
 
         <div className="flex-1" />
 
-        <input
-          ref={fileInput}
-          type="file"
-          accept=".sgf"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            onUpload(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        <Button variant="secondary" className="font-bold" onClick={() => fileInput.current?.click()}>
-          <Upload /> Upload SGF
-        </Button>
-        <Button className="font-bold" onClick={beginAnalysis}>
-          <Cpu /> Begin analysis
-        </Button>
+        {SITE_MODE === "lan" && (
+          <>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".sgf"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                onUpload(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <Button variant="secondary" className="font-bold" onClick={() => fileInput.current?.click()}>
+              <Upload /> Upload SGF
+            </Button>
+            <Button className="font-bold" onClick={beginAnalysis}>
+              <Cpu /> Begin analysis
+            </Button>
+          </>
+        )}
       </section>
 
       {queueCounts && (queueCounts.queued > 0 || queueCounts.running > 0) && (
@@ -435,8 +415,10 @@ export default function LibraryPage() {
         ) : games.length === 0 ? (
           <p className="text-lg font-semibold py-8 text-center">
             {filters.analysis === "done"
-              ? "No analyzed games match. Turn off \u201canalysis done\u201d to see every game, or queue analysis."
-              : "No games match these filters. Upload SGF files or fetch games from the Accounts tab."}
+              ? "No analyzed games match. Turn off \u201canalysis done\u201d to see every game" +
+                (SITE_MODE === "lan" ? ", or queue analysis." : ".")
+              : "No games match these filters." +
+                (SITE_MODE === "lan" ? " Upload SGF files or fetch games from the Accounts tab." : "")}
           </p>
         ) : (
           // Rows stay one line: players take the leftover width and end in "…"
@@ -458,7 +440,7 @@ export default function LibraryPage() {
                 <tr key={g.id} className="border-b border-border hover:bg-accent/60">
                   <td className="py-2 pr-4">
                     <button
-                      onClick={() => router.push(`/game/${g.id}`)}
+                      onClick={() => router.push(gameHref(g.id))}
                       title={playersOf(g)}
                       className="block w-full truncate text-left text-sm font-bold hover:text-gold sm:text-base"
                     >
@@ -481,7 +463,7 @@ export default function LibraryPage() {
                   <td className="hidden py-2 pr-4 lg:table-cell">
                     <select
                       value={g.status}
-                      onChange={(e) => patchGame(g.id, { status: e.target.value })}
+                      onChange={(e) => setStatus(g.id, e.target.value as GameStatus)}
                       className="bg-secondary text-foreground font-semibold text-sm rounded px-1 py-0.5 border border-border"
                     >
                       {STATUS_OPTIONS.map((s) => (
@@ -493,7 +475,7 @@ export default function LibraryPage() {
                   </td>
                   <td className="hidden py-2 pr-4 xl:table-cell">{analysisBadge(g)}</td>
                   <td className="hidden py-2 xl:table-cell">
-                    <Button size="sm" className="font-bold" onClick={() => router.push(`/game/${g.id}`)}>
+                    <Button size="sm" className="font-bold" onClick={() => router.push(gameHref(g.id))}>
                       Watch
                     </Button>
                   </td>

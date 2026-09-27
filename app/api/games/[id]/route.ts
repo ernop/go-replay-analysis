@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAnalysis, getDb, listAccounts, rowToSummary, type GameRow } from "@/lib/db";
-import { parseSgf } from "@/lib/sgf";
-import type { GameDetail } from "@/lib/types";
+import { getDb, listAccounts, rowToSummary, type GameRow } from "@/lib/db";
+import { gameDetail } from "@/lib/game-data";
 
 function getRow(id: string): GameRow | null {
   const db = getDb();
@@ -16,17 +15,8 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params;
-  const row = getRow(id);
-  if (!row) return NextResponse.json({ error: "game not found" }, { status: 404 });
-  const db = getDb();
-  const parsed = parseSgf(row.sgf);
-  const detail: GameDetail = {
-    game: rowToSummary(row, listAccounts(db)),
-    moves: parsed.moves,
-    initialStones: parsed.initialStones,
-    rules: parsed.rules,
-    analysis: getAnalysis(row),
-  };
+  const detail = gameDetail(getDb(), parseInt(id, 10));
+  if (!detail) return NextResponse.json({ error: "game not found" }, { status: 404 });
   return NextResponse.json(detail);
 }
 

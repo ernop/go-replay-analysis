@@ -15,8 +15,10 @@ import {
   selectCandidates,
   visitsLabel,
 } from "@/lib/review";
+import { saveProgress, withViewerProgress } from "@/lib/progress";
+import { SITE_MODE } from "@/lib/site-mode";
 import { useStoredString } from "@/lib/use-stored";
-import type { GameAnalysis, GameDetail } from "@/lib/types";
+import type { GameAnalysis, GameDetail, GameStatus } from "@/lib/types";
 
 interface Position {
   signMap: number[][];
@@ -51,19 +53,20 @@ export function Replay({ id }: { id: number }) {
   const showCandidates = candidatesSetting !== "off";
 
   useEffect(() => {
-    fetch(`/api/games/${id}`)
+    fetch(`/data/games/${id}.json`)
       .then((r) => {
         if (!r.ok) throw new Error(`game ${id} not found`);
         return r.json();
       })
       .then((d: GameDetail) => {
-        setDetail(d);
+        const game = withViewerProgress(d.game);
+        setDetail({ ...d, game });
         setAnalysis(d.analysis);
-        setAnalysisState(d.game.analysisState);
-        setAnalysisProgress(d.game.analysisProgress);
+        setAnalysisState(game.analysisState);
+        setAnalysisProgress(game.analysisProgress);
         const n = d.moves.length;
-        if (d.game.lastViewedMove > 0 && d.game.lastViewedMove < n) {
-          setIdx(d.game.lastViewedMove);
+        if (game.lastViewedMove > 0 && game.lastViewedMove < n) {
+          setIdx(game.lastViewedMove);
         }
       })
       .catch((e) => setError(String(e)));
@@ -168,13 +171,9 @@ export function Replay({ id }: { id: number }) {
     if (!detail) return;
     if (progressTimer.current) clearTimeout(progressTimer.current);
     progressTimer.current = setTimeout(() => {
-      fetch(`/api/games/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lastViewedMove: idx,
-          watchedToEnd: idx === moveCount && moveCount > 0,
-        }),
+      saveProgress(id, {
+        lastViewedMove: idx,
+        watchedToEnd: idx === moveCount && moveCount > 0,
       }).catch(() => {});
     }, 1200);
     return () => {
@@ -184,7 +183,8 @@ export function Replay({ id }: { id: number }) {
 
   // poll analysis while it's being computed
   useEffect(() => {
-    if (analysisState !== "queued" && analysisState !== "running") return;
+    // The public copy is a snapshot: analysis never advances in place there.
+    if (SITE_MODE === "public" || (analysisState !== "queued" && analysisState !== "running")) return;
     const t = setInterval(async () => {
       try {
         const r = await fetch(`/api/analysis/${id}`);
@@ -201,14 +201,10 @@ export function Replay({ id }: { id: number }) {
   const resultRevealed = revealResult || (moveCount > 0 && idx >= moveCount);
 
   const setStatus = useCallback(
-    (status: string) => {
+    (status: GameStatus) => {
       if (!detail) return;
-      setDetail({ ...detail, game: { ...detail.game, status: status as never } });
-      fetch(`/api/games/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      }).catch(() => {});
+      setDetail({ ...detail, game: { ...detail.game, status } });
+      saveProgress(id, { status }).catch(() => {});
     },
     [detail, id]
   );
@@ -380,23 +376,31 @@ export function Replay({ id }: { id: number }) {
               }}
             />
           ) : analysisState === "queued" || analysisState === "running" ? (
-            <p className="fs-body">
-              {analysisState === "queued" ? "Queued for analysis" : "Analyzing"}: {analysisProgress}/{analysisTotal}{" "}
-              positions. The worker runs on the GPU machine: <code className="text-gold">npm run analyze</code>
-            </p>
+            SITE_MODE === "lan" ? (
+              <p className="fs-body">
+                {analysisState === "queued" ? "Queued for analysis" : "Analyzing"}: {analysisProgress}/{analysisTotal}{" "}
+                positions. The worker runs on the GPU machine: <code className="text-gold">npm run analyze</code>
+              </p>
+            ) : (
+              <p className="fs-body">Analysis is in progress for this game; it appears here once published.</p>
+            )
           ) : analysisState === "error" ? (
             <p className="fs-body flex items-center gap-3">
               <span className="font-bold text-[#ff5555]">Analysis failed</span>
-              <button type="button" className="ctl border border-[#555555]" onClick={queueAnalysis}>
-                retry
-              </button>
+              {SITE_MODE === "lan" && (
+                <button type="button" className="ctl border border-[#555555]" onClick={queueAnalysis}>
+                  retry
+                </button>
+              )}
             </p>
           ) : (
             <p className="fs-body flex items-center gap-3">
               No analysis yet.
-              <button type="button" className="ctl border border-[#555555]" onClick={queueAnalysis}>
-                queue analysis
-              </button>
+              {SITE_MODE === "lan" && (
+                <button type="button" className="ctl border border-[#555555]" onClick={queueAnalysis}>
+                  queue analysis
+                </button>
+              )}
             </p>
           )}
         </div>
@@ -412,7 +416,16 @@ export function Replay({ id }: { id: number }) {
               move to done
             </button>
           </div>
-          <TagEditor tags={g.tags} onChange={setTags} />
+          {SITE_MODE === "lan" ? (
+            <TagEditor tags={g.tags} onChange={setTags} />
+          ) : (
+            g.tags.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-2">
+                <span className="font-bold">tags</span>
+                <span className="text-gold">{g.tags.join(", ")}</span>
+              </div>
+            )
+          )}
           <div className="fs-caption flex flex-wrap items-center justify-between gap-2">
             <Link href="/" className="text-gold underline">
               ← library
