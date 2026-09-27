@@ -33,6 +33,9 @@ const publicCopy: NextConfig = {
   output: "export",
   trailingSlash: true,
   turbopack: { root: process.cwd() },
+  // A random build id would make every export differ; chunk names already
+  // carry content hashes, and the site revalidates every file (no-cache).
+  generateBuildId: async () => "public",
 };
 
 export default SITE_MODE === "lan" ? lan : publicCopy;
