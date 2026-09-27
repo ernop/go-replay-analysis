@@ -80,7 +80,11 @@ this repo's docs, not in an agent's private memory.
 
 - `origin` — github.com/ernop/go-replay-analysis (public). Never commit
   `.env.local` or `data/go-replay.db`.
-- `cursor` — the original Cursor remote the project was started on.
+- `cursor` — the original Cursor remote the project was started on
+  (origin.cursor.com/yolo-so-be-careful/go-replay-analysis). Only tvnik's
+  checkout has it and its credentials, so "push everywhere" means pushing
+  `origin` from the PC, then on tvnik `git pull --ff-only origin main` and
+  `git push cursor main`. Brought level with GitHub on 2026-09-26.
 
 ## Machines
 
@@ -197,9 +201,11 @@ Convert only at the display layer, and follow these rules:
   - Adam's 10 most recent games (ids 394–404; 398 and 395 were re-run
     after the worker restart).
   The phone opens `http://192.168.1.27:4517/game?id=<id>` (older
-  `/game/<id>` links redirect). tvnik still runs the older code and has no
-  analysis in the new format. This work was committed on 2026-09-26 together
-  with the public copy.
+  `/game/<id>` links redirect). Since the evening of 2026-09-26 tvnik runs
+  the current code too (its dev server reloads after a `git pull`; no
+  dependency or schema change needed one), but its database still has no
+  analysis in the new format, so analysed games are on the PC and the public
+  copy. This work was committed on 2026-09-26 together with the public copy.
 - Visual checks: `node scripts/review-screenshots.mjs <url> <move> [outDir]
   [mode]` saves 1920×1080, 1024×728, and 390×844 screenshots, paused and
   autoplaying, in the given board mode; guess mode adds a `-rating` shot
