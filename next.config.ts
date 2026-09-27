@@ -25,7 +25,14 @@ const lan: NextConfig = {
   },
 };
 
-// scripts/publish-public.mjs builds this from its private copy of the repo.
-const publicCopy: NextConfig = { ...shared, output: "export", trailingSlash: true };
+// scripts/publish-public.mjs builds this from its private copy of the repo,
+// which sits inside the checkout; without an explicit root, Turbopack picks
+// the checkout's lockfile and compiles for minutes instead of seconds.
+const publicCopy: NextConfig = {
+  ...shared,
+  output: "export",
+  trailingSlash: true,
+  turbopack: { root: process.cwd() },
+};
 
 export default SITE_MODE === "lan" ? lan : publicCopy;
