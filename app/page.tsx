@@ -31,19 +31,54 @@ const DEFAULT_FILTERS: LibraryFilters = {
   sort: "added",
 };
 
-/** DGS stores "start,end"; the start date is what "Date played" sorts by. */
+/** DGS stores "start,end" and SGF allows "start..end"; the start date is what "Date played" sorts by. */
 function playedOn(g: GameSummary): string {
-  return g.datePlayed.split(",")[0] || "—";
+  return g.datePlayed.split(/,|\.\./)[0] || "—";
 }
 
-/** Black first, as everywhere in Go notation. */
-function playersOf(g: GameSummary): string {
-  const b = g.blackRank ? `${g.black} ${g.blackRank}` : g.black;
-  const w = g.whiteRank ? `${g.white} ${g.whiteRank}` : g.white;
-  return `${b} vs ${w}`;
+/** DGS names players "Real Name (handle)"; the library shows the handle. */
+function handleOf(player: string): string {
+  return /\(([^()]+)\)\s*$/.exec(player)?.[1].trim() || player;
 }
 
-const TH = "py-2 pr-4 text-sm font-bold text-gold uppercase tracking-wide";
+/**
+ * One side of a game in fixed-width slots (name, rank, and for Black the
+ * handicap), so they line up down the table. A tracked person shows by name
+ * in a chip of their stone's colour; the negative margin keeps chip text in
+ * line with the plain handles above and below.
+ */
+function PlayerCell({ side, g }: { side: "W" | "B"; g: GameSummary }) {
+  const name = side === "W" ? g.white : g.black;
+  const rank = side === "W" ? g.whiteRank : g.blackRank;
+  const person = side === "W" ? g.whitePerson : g.blackPerson;
+  return (
+    <span className="inline-flex items-baseline gap-[1ch]" title={rank ? `${name} ${rank}` : name}>
+      {person ? (
+        <span className="inline-block w-[12ch]">
+          <span
+            className={
+              side === "W"
+                ? "-ml-1 rounded-sm bg-white px-1 font-bold text-black"
+                : "-ml-[5px] rounded-sm border border-white/60 bg-black px-1 font-bold"
+            }
+          >
+            {person}
+          </span>
+        </span>
+      ) : (
+        <span className="inline-block w-[12ch] truncate align-bottom">{handleOf(name)}</span>
+      )}
+      <span className="inline-block w-[3ch]">{rank}</span>
+      {side === "B" && <span className="inline-block w-[3ch] text-gold">{g.handicap > 0 ? `H${g.handicap}` : ""}</span>}
+    </span>
+  );
+}
+
+const TH = "py-1 pr-4 fs-caption font-bold text-gold uppercase tracking-wide";
+const TD = "py-1.5 pr-4";
+// text-xs rather than fs-fine: cn() only replaces the components' own
+// text-sm with a size class it recognises.
+const CTL = "h-7 px-2 text-xs font-normal md:text-xs";
 
 const STATUS_OPTIONS = ["new", "skipped", "played", "done"];
 
@@ -64,39 +99,6 @@ function resultChip(g: GameSummary) {
     );
   }
   return <span className="font-mono font-bold text-sm">{g.result}</span>;
-}
-
-function analysisBadge(g: GameSummary) {
-  const pct =
-    g.analysisTotal > 0 ? Math.round((g.analysisProgress / g.analysisTotal) * 100) : 0;
-  switch (g.analysisState) {
-    case "done":
-      return (
-        <span className="font-bold text-sm" style={{ color: "#99dd55" }}>
-          analyzed
-        </span>
-      );
-    case "running":
-      return (
-        <span className="font-bold text-sm" style={{ color: "#77dddd" }}>
-          running {pct}%
-        </span>
-      );
-    case "queued":
-      return (
-        <span className="font-bold text-sm" style={{ color: "#e0b872" }}>
-          queued
-        </span>
-      );
-    case "error":
-      return (
-        <span className="font-bold text-sm" style={{ color: "#ff7777" }}>
-          error
-        </span>
-      );
-    default:
-      return <span className="font-semibold text-sm">—</span>;
-  }
 }
 
 export default function LibraryPage() {
@@ -214,38 +216,30 @@ export default function LibraryPage() {
     <div className="flex flex-col gap-4 w-full">
       {/* Up next */}
       {upNext && (
-        <section className="rounded border border-primary/60 bg-card px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-3 sm:gap-4">
-          <h2 className="text-sm font-bold text-gold uppercase tracking-wider whitespace-nowrap">Up next</h2>
-          <span className="min-w-0 flex-1 truncate fs-body font-bold" title={playersOf(upNext)}>
-            {playersOf(upNext)}
+        <section className="fs-caption flex items-center gap-3 rounded border border-[#2a2a2a] px-2 py-1 sm:gap-4">
+          <h2 className="whitespace-nowrap font-bold uppercase tracking-wider text-gold">Up next</h2>
+          <span className="flex min-w-0 gap-4 overflow-hidden whitespace-nowrap">
+            <PlayerCell side="W" g={upNext} />
+            <PlayerCell side="B" g={upNext} />
           </span>
-          <span className="hidden fs-body whitespace-nowrap sm:inline">{playedOn(upNext)}</span>
-          {upNext.handicap > 0 && (
-            <span className="hidden fs-body whitespace-nowrap text-gold sm:inline">H{upNext.handicap}</span>
-          )}
+          <span className="hidden whitespace-nowrap tabular-nums sm:inline">{playedOn(upNext)}</span>
           {revealUpNext ? (
-            <span className="hidden fs-body font-bold whitespace-nowrap sm:inline">{upNext.result || "?"}</span>
+            <span className="hidden whitespace-nowrap font-bold sm:inline">{upNext.result || "?"}</span>
           ) : (
             <button
-              className="hidden fs-body underline font-bold whitespace-nowrap hover:text-gold sm:inline"
+              className="hidden whitespace-nowrap underline hover:text-gold sm:inline"
               onClick={() => setRevealUpNext(true)}
             >
               reveal result
             </button>
           )}
-          <div className="flex flex-none gap-2">
-            <Button
-              size="lg"
-              className="font-bold"
-              title="Approve & watch"
-              onClick={() => router.push(gameHref(upNext.id))}
-            >
+          <div className="ml-auto flex flex-none gap-1">
+            <Button size="xs" title="Approve & watch" onClick={() => router.push(gameHref(upNext.id))}>
               <Eye /> <span className="hidden xl:inline">Approve &amp; watch</span>
             </Button>
             <Button
-              size="lg"
+              size="xs"
               variant="secondary"
-              className="font-bold"
               title="Skip"
               onClick={() => {
                 setRevealUpNext(false);
@@ -259,22 +253,21 @@ export default function LibraryPage() {
       )}
 
       {/* toolbar */}
-      <section className="flex flex-wrap items-center gap-2">
+      {/* One swipeable row on a phone; wrapped rows from 640px. */}
+      <section className="flex items-center gap-1.5 overflow-x-auto [&>*]:shrink-0 sm:flex-wrap">
         <button
           type="button"
           aria-pressed={filters.analysis === "done"}
           onClick={() => setF({ analysis: filters.analysis === "done" ? "all" : "done" })}
-          className={`h-9 rounded border px-3 font-bold whitespace-nowrap ${
-            filters.analysis === "done"
-              ? "border-gold bg-gold text-black"
-              : "border-border text-white hover:bg-accent"
+          className={`${CTL} rounded-lg border whitespace-nowrap ${
+            filters.analysis === "done" ? "border-gold text-gold" : "border-input hover:bg-accent"
           }`}
           title="Show only games whose analysis is finished"
         >
           {filters.analysis === "done" ? "✓ analysis done" : "analysis done"}
         </button>
         <Select value={filters.status} onValueChange={(v) => setF({ status: v })}>
-          <SelectTrigger className="w-auto font-semibold">
+          <SelectTrigger size="sm" className={`w-auto ${CTL}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -287,7 +280,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.person} onValueChange={(v) => setF({ person: v })}>
-          <SelectTrigger className="w-auto font-semibold">
+          <SelectTrigger size="sm" className={`w-auto ${CTL}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -300,7 +293,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.winner} onValueChange={(v) => setF({ winner: v })}>
-          <SelectTrigger className="w-auto font-semibold">
+          <SelectTrigger size="sm" className={`w-auto ${CTL}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -310,7 +303,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.source} onValueChange={(v) => setF({ source: v })}>
-          <SelectTrigger className="w-auto font-semibold">
+          <SelectTrigger size="sm" className={`w-auto ${CTL}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -322,7 +315,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.size} onValueChange={(v) => setF({ size: v })}>
-          <SelectTrigger className="w-auto font-semibold">
+          <SelectTrigger size="sm" className={`w-auto ${CTL}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -333,7 +326,7 @@ export default function LibraryPage() {
           </SelectContent>
         </Select>
         <Select value={filters.kind} onValueChange={(v) => setF({ kind: v })}>
-          <SelectTrigger className="w-auto font-semibold">
+          <SelectTrigger size="sm" className={`w-auto ${CTL}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -346,10 +339,10 @@ export default function LibraryPage() {
           value={filters.q}
           onChange={(e) => setF({ q: e.target.value })}
           placeholder="Search player, event, tag…"
-          className="w-[220px] font-semibold"
+          className={`w-[14rem] ${CTL}`}
         />
         <Select value={filters.sort} onValueChange={(v) => setF({ sort: v })}>
-          <SelectTrigger className="w-auto font-semibold">
+          <SelectTrigger size="sm" className={`w-auto ${CTL}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -374,10 +367,10 @@ export default function LibraryPage() {
                 e.target.value = "";
               }}
             />
-            <Button variant="secondary" className="font-bold" onClick={() => fileInput.current?.click()}>
+            <Button size="xs" variant="secondary" onClick={() => fileInput.current?.click()}>
               <Upload /> Upload SGF
             </Button>
-            <Button className="font-bold" onClick={beginAnalysis}>
+            <Button size="xs" variant="secondary" onClick={beginAnalysis}>
               <Cpu /> Begin analysis
             </Button>
           </>
@@ -385,7 +378,7 @@ export default function LibraryPage() {
       </section>
 
       {queueCounts && (queueCounts.queued > 0 || queueCounts.running > 0) && (
-        <p className="text-base font-bold">
+        <p className="fs-caption">
           Analysis queue:{" "}
           <span className="font-mono" style={{ color: "#e0b872" }}>
             {queueCounts.queued} queued
@@ -403,7 +396,7 @@ export default function LibraryPage() {
       )}
 
       {notice && (
-        <p className="text-base font-bold text-gold" onClick={() => setNotice("")}>
+        <p className="fs-caption text-gold" onClick={() => setNotice("")}>
           {notice}
         </p>
       )}
@@ -421,64 +414,48 @@ export default function LibraryPage() {
                 (SITE_MODE === "lan" ? " Upload SGF files or fetch games from the Accounts tab." : "")}
           </p>
         ) : (
-          // Rows stay one line: players take the leftover width and end in "…"
-          // when too long. Tapping them opens the game.
-          <table className="w-full table-fixed text-left border-collapse whitespace-nowrap">
+          // Rows stay one line. White comes first; every column before the
+          // last keeps its content's fixed width, and the last takes the rest.
+          // Tapping a row opens the game.
+          <table className="w-full border-collapse whitespace-nowrap text-left">
             <thead>
-              <tr className="border-b-2 border-border">
-                <th className={TH}>Players</th>
-                <th className={`${TH} hidden w-[7rem] lg:table-cell`}>People</th>
-                <th className={`${TH} hidden w-[8.5rem] lg:table-cell`}>Result</th>
-                <th className={`${TH} hidden w-[7.5rem] sm:table-cell`}>Date</th>
-                <th className={`${TH} hidden w-[7rem] lg:table-cell`}>Status</th>
-                <th className={`${TH} hidden w-[7rem] xl:table-cell`}>Analysis</th>
-                <th className={`${TH} hidden w-[6rem] xl:table-cell`} />
+              <tr className="border-b border-border">
+                <th className={TH}>White</th>
+                <th className={TH}>Black</th>
+                <th className={`${TH} hidden sm:table-cell`}>Result</th>
+                <th className={`${TH} hidden sm:table-cell`}>Date</th>
+                <th className={`${TH} hidden lg:table-cell`} />
+                <th className="w-full" />
               </tr>
             </thead>
-            <tbody>
+            <tbody className="fs-caption sm:fs-ui">
               {games.map((g) => (
-                <tr key={g.id} className="border-b border-border hover:bg-accent/60">
-                  <td className="py-2 pr-4">
-                    <button
-                      onClick={() => router.push(gameHref(g.id))}
-                      title={playersOf(g)}
-                      className="block w-full truncate text-left text-sm font-bold hover:text-gold sm:text-base"
+                <tr
+                  key={g.id}
+                  onClick={() => router.push(gameHref(g.id))}
+                  className="cursor-pointer border-b border-border hover:bg-accent/60"
+                >
+                  <td className={TD}>
+                    <PlayerCell side="W" g={g} />
+                  </td>
+                  <td className={TD}>
+                    <PlayerCell side="B" g={g} />
+                  </td>
+                  <td className={`${TD} hidden sm:table-cell`}>{resultChip(g)}</td>
+                  <td className={`${TD} hidden tabular-nums sm:table-cell`}>{playedOn(g)}</td>
+                  <td className={`${TD} hidden lg:table-cell`}>
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(gameHref(g.id));
+                      }}
                     >
-                      {playersOf(g)}
-                      {g.handicap > 0 && <span className="ml-3 text-gold">H{g.handicap}</span>}
-                    </button>
-                  </td>
-                  <td className="hidden py-2 pr-4 lg:table-cell">
-                    {g.people.map((p) => (
-                      <span
-                        key={p}
-                        className="inline-block rounded bg-primary text-primary-foreground text-xs font-bold px-1.5 py-0.5 mr-1"
-                      >
-                        {p}
-                      </span>
-                    ))}
-                  </td>
-                  <td className="hidden py-2 pr-4 lg:table-cell">{resultChip(g)}</td>
-                  <td className="hidden py-2 pr-4 font-bold text-sm tabular-nums sm:table-cell">{playedOn(g)}</td>
-                  <td className="hidden py-2 pr-4 lg:table-cell">
-                    <select
-                      value={g.status}
-                      onChange={(e) => setStatus(g.id, e.target.value as GameStatus)}
-                      className="bg-secondary text-foreground font-semibold text-sm rounded px-1 py-0.5 border border-border"
-                    >
-                      {STATUS_OPTIONS.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="hidden py-2 pr-4 xl:table-cell">{analysisBadge(g)}</td>
-                  <td className="hidden py-2 xl:table-cell">
-                    <Button size="sm" className="font-bold" onClick={() => router.push(gameHref(g.id))}>
                       Watch
                     </Button>
                   </td>
+                  <td />
                 </tr>
               ))}
             </tbody>

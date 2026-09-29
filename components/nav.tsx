@@ -17,9 +17,10 @@ const TABS =
 export function Nav() {
   const pathname = usePathname();
   return (
-    <header className="w-full border-b border-border bg-card">
-      <div className="flex items-center gap-3 px-2 sm:gap-6 sm:px-4 md:px-6 h-14">
-        <Link href="/" className="whitespace-nowrap text-base font-bold tracking-wide text-gold sm:text-xl">
+    // Its height (h-7 plus the border) is part of the replayer's 45px allowance.
+    <header className="w-full border-b border-[#1c1c1c]">
+      <div className="fs-caption flex h-7 items-center gap-4 px-2 sm:px-4 md:px-6">
+        <Link href="/" className="whitespace-nowrap font-bold text-gold">
           Go Game Replay
         </Link>
         <nav className="flex items-center gap-1">
@@ -30,12 +31,7 @@ export function Nav() {
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={cn(
-                  "px-2 sm:px-3 py-1.5 rounded text-base font-semibold",
-                  active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-foreground hover:bg-accent"
-                )}
+                className={cn("rounded px-2 py-0.5", active ? "text-gold" : "text-foreground hover:bg-accent")}
               >
                 {tab.label}
               </Link>

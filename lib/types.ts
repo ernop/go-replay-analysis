@@ -27,6 +27,9 @@ export interface GameSummary {
   analysisEngine: string;
   /** Tracked people appearing in this game, e.g. ["Me", "Carl"] */
   people: string[];
+  /** The tracked person playing each side, e.g. "Adam"; empty when that player is not tracked. */
+  whitePerson: string;
+  blackPerson: string;
 }
 
 export interface ParsedMove {

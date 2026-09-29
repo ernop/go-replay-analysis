@@ -37,8 +37,9 @@ the reason is written below.
 
 ## Library tracking
 
-- Statuses: `new` → (`skipped` |) `played` → `done`. Manual via a status dropdown per
-  row and buttons in the replayer.
+- Statuses: `new` → (`skipped` |) `played` → `done`. Set by hand with the buttons in
+  the replayer and Up next's Skip (the per-row status dropdown was removed on
+  2026-09-29).
 - **Auto-tracking**: reaching the final move of a game automatically marks it
   `played` (if it was `new`/`skipped`) and records `watched to end ✓`. The last
   viewed move is saved continuously, so a game resumes where you left off.
@@ -53,19 +54,38 @@ the reason is written below.
   the next unwatched analyzed game.
 - **Game table: one line per game** (the owner's general rule, 2026-09-26: no
   second "sub-row" of other information inside a row).
-  - The players' names are the row, with the handicap after them ("H3") when
-    there is one. Names end in "…" when too long, the full names show on
-    hover, and tapping them opens the game. The event / file code is not shown.
-  - Board size, source, move count, and tags have no columns. Size and source
-    are still filters.
+  - **White first, then Black** (decided 2026-09-29), each in its own column:
+    the player's name and rank in fixed-width slots (name 12 characters, rank
+    3, and after Black the handicap, "H3", 3), so names, ranks and handicaps
+    line up down the table whatever the filters show. Then result and date.
+    Tapping anywhere on a row opens the game.
+  - **Names are the handle only**: DGS's "Real Name (handle)" shows as
+    "handle"; a name without one (the seed games' "Lee Sedol") shows whole.
+    Longer names end in "…", and hovering shows the full name and rank.
+  - **A tracked person shows by their person name** ("Me", "Adam") in a chip
+    of their stone's colour: white with black text when they play White,
+    black with a white border when they play Black. This replaced the People
+    column; the person filter stays.
+  - No status or analysis columns (removed 2026-09-29): status is set in the
+    replayer or with Skip, and "analysis done" is a filter. Board size,
+    source, move count, and tags have no columns either; size and source are
+    still filters.
   - The date is the start date, because that is what "date played" sorts by.
-    DGS stores "start,end".
-  - Columns appear as the screen widens: players only on a phone; date from
-    640 px; people, result, and status from 1024 px; analysis and the Watch
-    button from 1280 px.
-  - The Up next card is one line too: "UP NEXT", the players, the date, and
-    "reveal result". Its buttons are icons below 1280 px, and phones drop the
-    date and the reveal link.
+    DGS stores "start,end" and SGF allows "start..end" (a 1933 seed game
+    spans three months).
+  - Columns appear as the screen widens: White and Black on a phone; result
+    and date from 640 px; a small Watch button from 1024 px. A last, empty
+    column takes the leftover width, so the others keep their fixed widths.
+  - The Up next card is one line too: "UP NEXT", the two players as in the
+    table, the date, "reveal result", and small buttons at the right (icons
+    only below 1280 px). Phones drop the date and the reveal link.
+- **Small, quiet chrome** (the owner, 2026-09-29: "make topbar etc much
+  smaller and more subtle"). The top bar is 28 px tall with 14 px text; the
+  current page is marked in gold, not with a filled tab. Toolbar controls are
+  28 px tall with 12 px text; "analysis done" shows as a gold outline when on;
+  on a phone the toolbar is one row that scrolls sideways, so the first game
+  starts about 170 px down instead of 450. Up next and notices use 14 px
+  text, and the table's column labels are 14 px gold.
 
 ## People & accounts
 
@@ -220,7 +240,9 @@ top to bottom:
 **Layout:**
 
 - On desktop the board takes the viewport height, but never more than
-  leaves about 430 px for the panel (`min(100vh − 5.5rem, 100vw − 31rem)`).
+  leaves about 430 px for the panel (`min(100vh − 45px, 100vw − 31rem)`; the
+  45 px is the top bar and the page's vertical padding, 88 px before the top
+  bar shrank on 2026-09-29).
   At a 1024 px window that is a 513 px board and a panel wide enough for the
   charts.
 - On phones (below 1024 px) the page is one scrolling column: board, control

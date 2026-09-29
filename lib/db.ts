@@ -169,20 +169,15 @@ export function getDb(): Database.Database {
 export type GameRow = Record<string, any>;
 
 export function rowToSummary(row: GameRow, accounts?: Account[]): GameSummary {
-  const people: string[] = [];
-  if (accounts) {
-    const black = String(row.black).toLowerCase();
-    const white = String(row.white).toLowerCase();
-    // DGS writes players as "Real Name (handle)", so also match on "(handle)".
-    const matches = (player: string, u: string) =>
-      player === u || player.includes(`(${u})`);
-    for (const a of accounts) {
-      const u = a.username.toLowerCase();
-      if ((matches(black, u) || matches(white, u)) && !people.includes(a.person)) {
-        people.push(a.person);
-      }
-    }
-  }
+  // DGS writes players as "Real Name (handle)", so also match on "(handle)".
+  const personOf = (player: string) => {
+    const p = String(player).toLowerCase();
+    const u = (a: Account) => a.username.toLowerCase();
+    return accounts?.find((a) => p === u(a) || p.includes(`(${u(a)})`))?.person ?? "";
+  };
+  const whitePerson = personOf(row.white);
+  const blackPerson = personOf(row.black);
+  const people = [...new Set([whitePerson, blackPerson].filter(Boolean))];
   return {
     id: row.id,
     source: row.source,
@@ -208,6 +203,8 @@ export function rowToSummary(row: GameRow, accounts?: Account[]): GameSummary {
     analysisTotal: row.move_count + 1,
     analysisEngine: row.analysis_engine,
     people,
+    whitePerson,
+    blackPerson,
   };
 }
 

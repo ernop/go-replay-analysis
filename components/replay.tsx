@@ -368,9 +368,9 @@ export function Replay({ id }: { id: number }) {
   const analysisTotal = moveCount + 1;
 
   return (
-    <div className="flex flex-col gap-3 lg:h-[calc(100vh_-_5.5rem)] lg:flex-row lg:items-start lg:gap-4">
-      {/* The board takes the height; the panel keeps at least about 430px. */}
-      <div className="relative aspect-square w-full lg:w-[min(calc(100vh_-_5.5rem),calc(100vw_-_31rem))] lg:flex-none">
+    <div className="flex flex-col gap-3 lg:h-[calc(100vh_-_45px)] lg:flex-row lg:items-start lg:gap-4">
+      {/* The board takes the height (45px: the top bar and the page's vertical padding); the panel keeps at least about 430px. */}
+      <div className="relative aspect-square w-full lg:w-[min(calc(100vh_-_45px),calc(100vw_-_31rem))] lg:flex-none">
         <Goban
           size={size}
           signMap={pos.signMap}
