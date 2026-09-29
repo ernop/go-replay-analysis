@@ -551,6 +551,13 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
   `~/.ssh/fuseki-go-replayer`, a key that can only hand a release for this site
   to Fuseki's receiver. New analysis appears publicly after the next publish.
   A release is named by a hash of its files, so data-only updates publish.
+- **A release may be up to 512 MiB** (decided 2026-09-29; the owner: "let's
+  raise it dramatically to like 500MiB and in general we have to be careful
+  about these arbitrary limits"). Fuseki's receiver had capped releases at
+  64 MiB only because it held each upload in memory; it now streams files to
+  disk. The site's policy (`fuseki4_ai/setup/apps/receivers/go-replayer.json`)
+  admits 512 MiB, 16,384 files and 64 MiB per file, room for roughly 300 games
+  analysed at 10,000 visits.
 - **Every push to GitHub's `main` publishes** (decided 2026-09-26; the owner:
   "i want that to autoupdate every time i push to github"). GitHub cannot
   build the site itself, because the games and analysis live only in the PC's
@@ -605,11 +612,11 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
 - Public copy size: at 10,000 visits a game's analysis is almost 3 times its
   size at 1,000, because KataGo reports ~83 moves per position instead of ~30
   (game 580: 0.99 MB against 0.36 MB). An average 180-move game will be about
-  1.5 MB. Fuseki's receiver takes at most 64 MiB per release, so roughly 40
-  analysed games fit. Beyond that the publisher must precompress the data files
-  (nginx `gzip_static`), the stored moves with too few visits ever to be shown
-  (under 1% of the position's) must be dropped, or the receiver's limit must
-  change.
+  1.5 MB. Every publish uploads the whole site, and the PC uploads to Fuseki
+  at about 1.8 MiB/s, so a 512 MiB site would take about five minutes each
+  half-hourly data publish. If the site grows that large, the publisher
+  should send only changed files (the receiver linking the rest from the live
+  release) or precompress the data files (nginx `gzip_static`).
 
 - Owner to supply usernames for Me/Carl/Adam/Gary on their servers, and the
   preferred game source to bulk-download from.
