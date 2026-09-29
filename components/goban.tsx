@@ -9,7 +9,7 @@ export interface BoardMark {
   lines: string[];
 }
 
-/** A move already on the board, rated like a candidate: a disc over its stone, which shows as a rim. */
+/** A move already on the board, rated like a candidate: a disc over its stone, which shows as a rim, inside a red ring. */
 export interface PlayedMark {
   vertex: [number, number];
   fill: string;
@@ -23,6 +23,8 @@ interface GobanProps {
   /** Candidate circles and the played-move disc sit on their own layer above the stones. */
   marks: BoardMark[];
   played?: PlayedMark | null;
+  /** Draw the candidates as discs the size of the played-move disc instead of stone-sized circles. */
+  smallMarks?: boolean;
   /** A new key starts a fresh marks layer, restarting any animation in `marksClassName`. */
   marksKey?: string | number;
   marksClassName?: string;
@@ -38,12 +40,13 @@ interface GobanProps {
 const WOOD = "#d0ad75";
 const GRID = "#000000";
 const LAST_MOVE = "#ff6666";
+/** Stone radius, in squares. */
+const STONE = 0.48;
 /**
- * Radius of the played-move disc in squares. Its stone (0.48) shows around it
- * as a thick rim, so the move just played stands apart from the candidate
- * circles on empty points.
+ * Radius of the played-move disc, and of the candidates with `smallMarks`, in
+ * squares. On a stone it leaves a thick rim.
  */
-const PLAYED_DISC = 0.3;
+const DISC = 0.3;
 
 function hoshiPoints(size: number): [number, number][] {
   if (size === 19) {
@@ -88,6 +91,7 @@ export function Goban({
   lastMove,
   marks,
   played,
+  smallMarks = false,
   marksKey,
   marksClassName,
   onBoardClick,
@@ -129,7 +133,7 @@ export function Goban({
         ctx.fill();
       }
 
-      const r = square * 0.48;
+      const r = square * STONE;
       for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
           const sign = signMap[y]?.[x] ?? 0;
@@ -175,48 +179,54 @@ export function Goban({
       if (!board) return;
       const { ctx, square, centre } = board;
 
-      // Two lines (Delta + Visits) follow ogatak board_font_chooser: "999"
-      // fills 59% of a square. A single Delta line is bold and as large as the
-      // widest label allows, up to 42% of a square.
+      // Two lines (analysis mode's Delta + Visits) follow ogatak
+      // board_font_chooser: "999" fills 59% of a stone-sized circle's square,
+      // scaled with the circle. A single bold Delta line (guess mode) is sized
+      // for the small disc, at most 36% of a square tall, and every label
+      // shares it.
+      const markRadius = smallMarks ? DISC : 0.5;
       const family = getComputedStyle(canvas).fontFamily;
       const twoLines = marks.some((m) => m.lines.length >= 2);
       const font = (px: number) => `${twoLines ? "" : "bold "}${px}px ${family}`;
       const labels = [...marks.map((m) => m.lines[0] ?? ""), played?.label ?? ""];
       const fontPx = twoLines
-        ? fitFontPx(ctx, font, 0.59 * square, ["999"])
-        : Math.min(Math.floor(0.42 * square), fitFontPx(ctx, font, 0.8 * square, labels));
+        ? fitFontPx(ctx, font, 1.18 * markRadius * square, ["999"])
+        : Math.min(Math.floor(0.36 * square), fitFontPx(ctx, font, 1.7 * DISC * square, labels));
       ctx.font = font(fontPx);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+      const circle = (cx: number, cy: number, radius: number, fill: string, lines: string[]) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * square, 0, Math.PI * 2);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.fillStyle = "#000000";
+        if (lines.length >= 2) {
+          ctx.fillText(lines[0], cx, cy - (radius * square) / 3 + 0.5);
+          ctx.fillText(lines[1], cx, cy + (radius * square) / 3 + 1.5);
+        } else if (lines.length === 1) {
+          ctx.fillText(lines[0], cx, cy + 1);
+        }
+      };
+
       for (const m of marks) {
         const [mx, my] = m.vertex;
         if ((signMap[my]?.[mx] ?? 0) !== 0) continue;
-        const left = mx * square;
-        const top = my * square;
-        ctx.beginPath();
-        ctx.arc(centre(mx), centre(my), square / 2, 0, Math.PI * 2);
-        ctx.fillStyle = m.fill;
-        ctx.fill();
-        ctx.fillStyle = "#000000";
-        if (m.lines.length >= 2) {
-          ctx.fillText(m.lines[0], left + square / 2, top + square / 3 + 0.5);
-          ctx.fillText(m.lines[1], left + square / 2, top + (square * 2) / 3 + 1.5);
-        } else if (m.lines.length === 1) {
-          ctx.fillText(m.lines[0], left + square / 2, top + square / 2 + 2);
-        }
+        circle(centre(mx), centre(my), markRadius, m.fill, m.lines);
       }
 
       if (played && (signMap[played.vertex[1]]?.[played.vertex[0]] ?? 0) !== 0) {
         const cx = centre(played.vertex[0]);
         const cy = centre(played.vertex[1]);
+        // The disc hides the last-move dot, so the move keeps its red as a
+        // ring round the stone's edge.
+        const ring = Math.max(1.5, square * 0.06);
         ctx.beginPath();
-        ctx.arc(cx, cy, square * PLAYED_DISC, 0, Math.PI * 2);
-        ctx.fillStyle = played.fill;
-        ctx.fill();
-        // Same size as the candidates' text unless the label would spill onto the rim.
-        ctx.font = font(Math.min(fontPx, fitFontPx(ctx, font, 2 * square * PLAYED_DISC * 0.92, [played.label])));
-        ctx.fillStyle = "#000000";
-        ctx.fillText(played.label, cx, cy + 1);
+        ctx.arc(cx, cy, square * STONE - ring / 2, 0, Math.PI * 2);
+        ctx.strokeStyle = LAST_MOVE;
+        ctx.lineWidth = ring;
+        ctx.stroke();
+        circle(cx, cy, DISC, played.fill, [played.label]);
       }
     };
 
@@ -224,7 +234,7 @@ export function Goban({
     const observer = new ResizeObserver(draw);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [size, signMap, marks, played, marksKey]);
+  }, [size, signMap, marks, played, smallMarks, marksKey]);
 
   // Fills a positioned parent, which must have its own size.
   return (

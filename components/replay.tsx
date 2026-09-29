@@ -458,6 +458,7 @@ export function Replay({ id }: { id: number }) {
           lastMove={pos.lastMove}
           marks={marks}
           played={played}
+          smallMarks={mode === "guess"}
           marksKey={mode === "guess" ? `reveal-${reveal?.serial ?? 0}` : mode}
           marksClassName={mode === "guess" ? revealClass : undefined}
           onBoardClick={mode === "guess" ? toggleReveal : undefined}

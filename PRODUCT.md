@@ -240,7 +240,9 @@ questions:
 - **Numbers must be trustworthy, and few.** An option backed by 40 visits is
   noise. On the board, guess mode says only how much worse each option was.
 - **A calm colour language.** Good is green, bad a soft red, and nothing in
-  between looks muddy; the played stone stays recognisable as a stone.
+  between looks muddy. Guess mode's evaluation marks are small discs, and the
+  move just played stays recognisable as a stone and keeps its red
+  last-move mark.
 - **The game's own rhythm, when the record has it.** Pacing can follow how
   long the players really took.
 
@@ -270,13 +272,14 @@ or with the last-move button; there is no reveal button.
   stored visits, 50 hid most real alternatives: all 6 circles showed in only
   27% of positions. The minimum here is therefore 1% of the position's
   visits, which is 10 at 1,000 visits and 50 at 5,000.
-- Each circle is stone-sized and filled from one best-to-worst gradient:
-  green `#1fc46a`, `#8fd957`, yellow `#ecea6a`, light orange `#fbb870`, and
-  a soft red `#f47c7c`. It replaced ogatak-clear's `green_red` on 2026-09-29,
-  whose orange and dark red read as brown (the owner: "green to subtle red,
-  no browns"). Every stop is light enough to stand off the wood and to carry
-  black text. Colours are interpolated in linear sRGB, with the scale ending
-  at the worst shown move (minimum 0.5 points).
+- Analysis mode's circles are stone-sized, as in Ogatak; guess mode's are
+  smaller discs (see "Guess mode"). All are filled from one best-to-worst
+  gradient: green `#1fc46a`, `#8fd957`, yellow `#ecea6a`, light orange
+  `#fbb870`, and a soft red `#f47c7c`. It replaced ogatak-clear's `green_red`
+  on 2026-09-29, whose orange and dark red read as brown (the owner: "green
+  to subtle red, no browns"). Every stop is light enough to stand off the
+  wood and to carry black text. Colours are interpolated in linear sRGB, with
+  the scale ending at the worst shown move (minimum 0.5 points).
 - In analysis mode each circle holds two lines of black text in the page's
   font: "Delta" (for example "0" or "-0.42", this move's score minus the best
   move's, for the side to move) and "Visits". This matches the owner's Ogatak
@@ -399,17 +402,24 @@ a clean board, then sees how the real move compared.
   owner: "when i hit 'back 1' i.e. left arrow, we shall act as if this was a
   newly shown move"). Before, going back showed a clean board. Opening a game
   at its saved move shows nothing. The rating is:
-  - The mover's other options: the circles analysis mode showed for that
+  - The mover's other options: the moves analysis mode showed for that
     position (the engine's first move plus the 5 lowest-cost moves, with the
     same visit minimum), minus the point that was played. Each holds only its
     Delta, to one decimal and in bold ("the analysis circles shall only say
-    the differential on that move"); visits are left out.
+    the differential on that move"); visits are left out. They are discs the
+    size of the played stone's disc, not stone-sized circles (the owner,
+    2026-09-29: "all evaluation-related other candidate moves should also use
+    this shrunken size green/whatever color circle"). All the labels share
+    one size, fitted to the disc.
   - The played stone: a disc in its gradient colour carrying its Delta, laid
     over the stone. The disc's radius is 0.30 of a square (0.38 before
     2026-09-29) against the stone's 0.48, so the stone shows around it as a
-    thick rim and the move just played is obvious. A move worse than every
-    alternative sets the far end of the colour scale, so it never shares
-    their colour (ogatak-clear rule 6).
+    thick rim. The disc covers the last-move dot, so a red ring in the dot's
+    colour runs round the stone's edge (6% of a square wide, at least 1.5 px)
+    and the move keeps its highlight (the owner: "the shrunken indicator for
+    the move which was chosen is fine, we still need to highlight that
+    move"). A move worse than every alternative sets the far end of the colour
+    scale, so it never shares their colour (ogatak-clear rule 6).
   - Next to the move counter: "lost 2.30", with the value as a black-on-colour
     badge in the move's gradient colour ("pass lost …" for a pass). Board
     labels are tiny on a phone (19 px squares), so this is the legible copy.
