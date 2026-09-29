@@ -4,20 +4,23 @@
  *
  * Runs on the machine with the GPU. Pulls queued games from the web app,
  * analyzes every position with KataGo's JSON analysis engine, and posts the
- * results back so any device (e.g. your phone) can view them.
+ * results back so any device (e.g. your phone) can view them. When nothing is
+ * queued, it analyses again, at its own visits, any game whose analysis has
+ * fewer (PRODUCT.md "Analysis depth").
  *
  * Usage:
  *   node scripts/analyzer.mjs --katago /path/to/katago --model /path/to/model.bin.gz
  *   node scripts/analyzer.mjs --mock            # demo data, no KataGo needed
  *
  * Options:
- *   --server  URL of the web app        (default http://127.0.0.1:4517)
- *   --katago  path to the katago binary (default "katago" on PATH)
- *   --model   path to a KataGo network  (required unless --mock)
- *   --config  analysis config           (default scripts/katago-analysis.cfg)
- *   --visits  visits per position       (default 400)
- *   --once    exit when the queue is empty instead of polling
- *   --mock    generate plausible fake analysis instead of running KataGo
+ *   --server     URL of the web app        (default http://127.0.0.1:4517)
+ *   --katago     path to the katago binary (default "katago" on PATH)
+ *   --model      path to a KataGo network  (required unless --mock)
+ *   --config     analysis config           (default scripts/katago-analysis.cfg)
+ *   --visits     visits per position       (default 10000)
+ *   --no-deepen  only take queued games; leave shallower analyses alone
+ *   --once       exit when there is nothing to do instead of polling
+ *   --mock       generate plausible fake analysis instead of running KataGo
  */
 
 import { spawn } from "node:child_process";
@@ -33,7 +36,8 @@ function parseArgs(argv) {
     katago: "katago",
     model: "",
     config: path.join(__dirname, "katago-analysis.cfg"),
-    visits: 400,
+    visits: 10000,
+    deepen: true,
     once: false,
     mock: false,
   };
@@ -41,6 +45,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === "--once") args.once = true;
     else if (a === "--mock") args.mock = true;
+    else if (a === "--no-deepen") args.deepen = false;
     else if (a === "--server") args.server = argv[++i];
     else if (a === "--katago") args.katago = argv[++i];
     else if (a === "--model") args.model = argv[++i];
@@ -61,7 +66,9 @@ const BATCH_SIZE = 20;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function getJob() {
-  const res = await fetch(`${args.server}/api/analysis/next`);
+  // Mock data must never replace real analysis, so only real runs deepen.
+  const deepen = args.deepen && !args.mock ? `?deepenBelow=${args.visits}` : "";
+  const res = await fetch(`${args.server}/api/analysis/next${deepen}`);
   if (!res.ok) throw new Error(`server returned ${res.status}`);
   const data = await res.json();
   if (data.error) console.error(`server note: ${data.error}`);
@@ -245,7 +252,8 @@ function attachPlayedMoves(positions, moves) {
 
 async function runKatagoJob(job) {
   const total = job.moves.length + 1;
-  console.log(`analyzing game ${job.gameId}: ${job.black} vs ${job.white} (${job.moves.length} moves, ${args.visits} visits)`);
+  const again = job.deepenFrom ? `, replacing its ${job.deepenFrom}-visit analysis` : "";
+  console.log(`analyzing game ${job.gameId}: ${job.black} vs ${job.white} (${job.moves.length} moves, ${args.visits} visits${again})`);
   const query = {
     id: `game-${job.gameId}`,
     moves: job.moves,
@@ -323,7 +331,7 @@ async function main() {
     }
     if (!job) {
       if (args.once) {
-        console.log("queue empty, exiting (--once)");
+        console.log("nothing to analyse, exiting (--once)");
         break;
       }
       await sleep(POLL_MS);

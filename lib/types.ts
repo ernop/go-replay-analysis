@@ -36,6 +36,8 @@ export interface ParsedMove {
   color: "B" | "W";
   /** null = pass */
   vertex: [number, number] | null;
+  /** Seconds the player took, from the record's clock (BL/WL); absent when the record has none. */
+  seconds?: number;
 }
 
 export interface SetupStone {

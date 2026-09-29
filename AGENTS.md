@@ -35,27 +35,34 @@ this repo's docs, not in an agent's private memory.
   LAN app, used by both), and write routes under `app/api/` (games, accounts +
   fetch, analysis queue / next job / result posting; LAN only).
 - `lib/site-mode.ts` — `SITE_MODE`, "lan" or "public". Keep its one line
-  exactly as written: `scripts/publish-public.mjs` rewrites that line to build
-  the public copy. `lib/progress.ts` saves viewing progress (LAN: database,
-  public: the visitor's localStorage); `lib/library.ts` holds the library
-  filters; `lib/game-data.ts` builds the read routes' data.
-- `components/` — `replay.tsx` (replayer, panel, control bar, board modes),
+ exactly as written: `scripts/publish-public.mjs` rewrites that line to build
+ the public copy. `lib/progress.ts` saves viewing progress (LAN: database,
+ public: the visitor's localStorage); `lib/library.ts` holds the library
+ filters and how players and dates are shown (`handleOf`, `playedOn`, shared
+ by the library and the replayer); `lib/game-data.ts` builds the read routes'
+ data.
+- `components/` — `replay.tsx` (replayer: player boxes, big one-move
+  controls, board modes, guess mode's timing),
   `goban.tsx` (canvas board, Ogatak look; stones on one canvas, circles on a
   layer above that guess mode fades), `review-charts.tsx` (canvas ports of
-  ogatak-clear's MOVE QUALITY and GAME STATUS), shadcn primitives in
+  ogatak-clear's MOVE QUALITY and GAME STATUS, each opening and closing),
+  shadcn primitives in
   `components/ui/`. The review screen is specified in PRODUCT.md "Review
   screen"; its reference implementation is `~/proj/ogatak-clear/src/modules/`
   (`move_report.js`, `board_drawer.js`, `colour_gradients.js`, `utils.js`).
-- `lib/db.ts` — SQLite schema, seeding, ingest, analysis queue.
-  `lib/sgf.ts` — SGF parsing (server only; `@sabaki/sgf` needs `fs`).
+- `lib/db.ts` — SQLite schema (with a small `migrate` for added columns),
+  seeding, ingest, analysis queue.
+  `lib/sgf.ts` — SGF parsing, including each move's clock time from BL/WL
+  (server only; `@sabaki/sgf` needs `fs`).
   `lib/gtp.ts` — GTP coordinates, safe to import in the browser.
   `lib/review.ts` — candidate selection, Delta/Visits labels, gradient, and
   guess mode's rating of a played move (`rateMove`).
   `lib/use-stored.ts` — small settings kept in the browser's localStorage.
   `lib/types.ts` — shared types, tracked people.
 - `lib/fetchers/{ogs,kgs,dgs}.ts` — game fetchers per server.
-- `scripts/analyzer.mjs` — the analysis worker (runs on the PC);
-  `scripts/katago-analysis.cfg` — its KataGo config.
+- `scripts/analyzer.mjs` — the analysis worker (runs on the PC; 10,000 visits
+  by default, and it re-analyses shallower games when the queue is empty);
+  `scripts/katago-analysis.cfg` — its KataGo config (4 positions at once).
   `scripts/pull-tvnik-library.mjs` — copies tvnik's games into this
   machine's database (keys `tvnik:<id>`).
   `scripts/publish-public.mjs` (`npm run publish:public`) — publishes the
@@ -95,10 +102,13 @@ this repo's docs, not in an agent's private memory.
   RTX 3090 24 GB (compute capability 8.6, driver 595.91.07). The RTX 5060 Ti
   16 GB was in this same machine that morning; its August thread-sweep
   benchmark was ~1,570 visits/s. On the 3090 the same TensorRT binary and
-  net, using `scripts/katago-analysis.cfg` (16 search threads), finished one
-  2,000-visit empty-board query at about 1,410 visits/s. The engine cache for
-  this card is `~/.katago/trtcache/trt-101601_gpu-1042a4e3_…` (built
-  2026-09-25 14:20). KataGo TensorRT wrapper: `~/katago/trt/katago-trt`.
+  net, with 16 search threads on one position, finished one 2,000-visit
+  empty-board query at about 1,410 visits/s. The GPU is the limit: searching
+  4 positions at once (the config since 2026-09-29, batch 64) measured ~1,890
+  visits/s with the GPU ~95% busy, and 8 × 8 threads was no faster. The
+  engine caches for this card are
+  `~/.katago/trtcache/trt-101601_gpu-1042a4e3_…_b32` and `…_b64` (built
+  2026-09-25). KataGo TensorRT wrapper: `~/katago/trt/katago-trt`.
   Net: `~/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz`.
   Full install story: mybrowser repo,
   `project-ideas/candidate-projects/katago-local-go-analysis.md`.
@@ -129,22 +139,26 @@ this repo's docs, not in an agent's private memory.
 The server never pushes to the worker; the worker pulls.
 
 1. UI "Begin analysis" marks games `queued` in the DB.
-2. Worker polls `GET /api/analysis/next` every 5 s; the server hands out the
-   oldest queued game (moves, setup stones, rules, komi) and marks it
-   `running`. A job stuck in `running` for 15 min is handed out again.
+2. Worker polls `GET /api/analysis/next?deepenBelow=<its visits>` every 5 s;
+   the server hands out the oldest queued game (moves, setup stones, rules,
+   komi) and marks it `running`. A job stuck in `running` for 15 min is
+   handed out again. With nothing queued, it hands out the newest `done` game
+   whose `analysis_visits` is below the worker's visits, leaving it `done`
+   (PRODUCT.md "Analysis depth").
 3. Worker sends the whole game to KataGo's JSON analysis engine and posts
    results every 20 positions to `POST /api/analysis/<gameId>`, which merges
    them into `analysis_json`. Partial results are viewable immediately.
 
-Worker on the PC:
+Worker on the PC (10,000 visits per position is the default and the rule):
 
     node scripts/analyzer.mjs --server http://127.0.0.1:4517 \
       --katago ~/katago/trt/katago-trt \
-      --model ~/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz --visits 1500
+      --model ~/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz
 
 Verified 2026-09-24 on tvnik with the real engine (game 34, 62 moves, 40
 visits, CPU build): all 63 positions posted and stored. `--mock` produces fake
-data for UI work; `--once` exits when the queue is empty.
+data for UI work and never re-analyses; `--once` exits when there is nothing
+left to do; `--no-deepen` leaves shallower analyses alone.
 
 API routes have no authentication. Acceptable on the home LAN only; add auth
 before exposing the app through a tunnel.
@@ -160,21 +174,26 @@ Convert only at the display layer, and follow these rules:
   White, clamped at 0). Verdicts: <0.5 excellent, <1.5 good, <3 inaccuracy,
   <6 mistake, >=6 blunder.
 - Candidates are shown relative to the best move from this position (0 =
-  best), never relative to the global board value. Circles carry Ogatak's
-  "Delta + Visits" labels (the owner's Ogatak setting); which moves appear is
-  Ogatak's count mode, the best plus the 5 lowest-cost moves with at least 1%
-  of the position's visits. Details and reasons: PRODUCT.md "Review screen".
-- One continuous best→worst gradient (ogatak-clear `green_red`); no special
-  colour for the top move.
+  best), never relative to the global board value. In analysis mode circles
+  carry Ogatak's "Delta + Visits" labels (the owner's Ogatak setting); guess
+  mode's carry only the Delta. Which moves appear is Ogatak's count mode, the
+  best plus the 5 lowest-cost moves with at least 1% of the position's
+  visits. Details and reasons: PRODUCT.md "Review screen".
+- One continuous best→worst gradient, green to a soft red with no browns
+  (`lib/review.ts`); no special colour for the top move.
 - Never show the future: no next-move marker, charts end at the current
-  move, result hidden until revealed. Guess mode shows a move's own value
-  only once that move is on the board (PRODUCT.md "Guess mode").
+  move, and the result appears only once the last move is on the board.
+  Guess mode shows a move's own value only once that move is on the board
+  (PRODUCT.md "Guess mode").
+- Players are marked by colour (a black or white box, a small stone), never
+  labelled with the words "Black" / "White", and named by their handle,
+  never their real name.
 - "Was that move good" (per-move quality bars, fixed axis: up = White gained,
   down = Black gained) and "who is winning" (score-lead chart) are separate
   charts, never merged.
 - Width = candidates within 0.30 pts of best; Width 1 = only one good move.
 
-## Current state and next work (2026-09-26)
+## Current state and next work (2026-09-29)
 
 - The library is the PC's `data/go-replay.db`, filled on 2026-09-25 from
   tvnik's test library (`node scripts/pull-tvnik-library.mjs`: 572 DGS games
@@ -189,18 +208,28 @@ Convert only at the display layer, and follow these rules:
 - The review screen was rebuilt on 2026-09-26 to follow ogatak-clear and to
   never show the future (PRODUCT.md "Review screen"). Guess mode was added
   the same evening (PRODUCT.md "Guess mode"): the board stays clean before
-  each move, then briefly shows the move's rating and the mover's other
-  options. "Think carefully" pauses, which would build on it, are still
-  unbuilt. Open questions: pause-until-tap vs timed pause; whether "found the
-  only good move" moments count.
-- Analyzed on the PC as of 2026-09-26, at 1,000 visits (about 2 min per game
-  on the 3090):
-  - game 580 (tvnik game 11, kouchi vs nevizade);
-  - Adam's 10 most recent games (ids 394–404; 398 and 395 were re-run
-    after the worker restart).
+  each move, then shows the move's rating and the mover's other options.
+- On 2026-09-29 the owner reshaped the replay page, and PRODUCT.md "The
+  replayer's direction" records his words and what they imply: handles only,
+  colour instead of the words Black/White, a gold ring for the side to move,
+  small side facts, the result only at the last move, one sans-serif font,
+  full-width play/pause and one-move buttons, charts that open and close,
+  guess mode's analysis on every move shown (back steps too) with a "hold
+  till accepted" setting, finer "every" and "show analysis" steps,
+  real-time pacing from SGF clocks, and a green-to-soft-red gradient.
+  "Think carefully" pauses, which would build on guess mode, are still
+  unbuilt; "hold till accepted" answers the old pause-until-tap question for
+  guess mode. Still open: whether "found the only good move" moments count.
+- Analysed on the PC: game 580 (tvnik game 11, kouchi vs nevizade) and
+  Adam's 10 most recent games (ids 394–404), first at 1,000 visits on
+  2026-09-26. From 2026-09-29 14:29 the worker re-analyses them at 10,000
+  visits, newest first, about 2.4 h in all; game 580 was done by 14:39. A
+  game's `analysis_visits` column reads 10000 once it is redone. The public
+  copy follows within 30 minutes of each game.
   The phone opens `http://192.168.1.27:4517/game?id=<id>` (older
-  `/game/<id>` links redirect), or the public copy. This work was committed
-  on 2026-09-26 together with the public copy.
+  `/game/<id>` links redirect), or the public copy.
+- KGS archive pages now ask for a login (found 2026-09-29), so
+  `lib/fetchers/kgs.ts` finds no games until it logs in.
 - Visual checks: `node scripts/review-screenshots.mjs <url> <move> [outDir]
   [mode]` saves 1920×1080, 1024×728, and 390×844 screenshots, paused and
   autoplaying, in the given board mode; guess mode adds a `-rating` shot

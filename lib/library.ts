@@ -23,6 +23,16 @@ export function gameHref(id: number): string {
   return `/game?id=${id}`;
 }
 
+/** DGS names players "Real Name (handle)"; the app shows the handle. */
+export function handleOf(player: string): string {
+  return /\(([^()]+)\)\s*$/.exec(player)?.[1].trim() || player;
+}
+
+/** DGS stores "start,end" and SGF allows "start..end"; the start date is what "Date played" sorts by. */
+export function playedOn(g: GameSummary): string {
+  return g.datePlayed.split(/,|\.\./)[0] || "—";
+}
+
 /** The library's filters and sort, applied in the browser to every game. */
 export function filterGames(games: GameSummary[], f: LibraryFilters): GameSummary[] {
   const q = f.q.trim().toLowerCase();

@@ -7,6 +7,8 @@ import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Pause, Play } fro
 import { Goban, type BoardMark, type PlayedMark } from "@/components/goban";
 import { ReviewCharts } from "@/components/review-charts";
 import { TagEditor } from "@/components/tag-editor";
+import { handleOf, playedOn } from "@/lib/library";
+import { saveProgress, withViewerProgress } from "@/lib/progress";
 import {
   costColour,
   deltaLabel,
@@ -17,12 +19,10 @@ import {
   vertexToGtp,
   visitsLabel,
   type BoardCandidate,
-  type MoveRating,
 } from "@/lib/review";
-import { saveProgress, withViewerProgress } from "@/lib/progress";
 import { SITE_MODE } from "@/lib/site-mode";
 import { useStoredString } from "@/lib/use-stored";
-import type { GameAnalysis, GameDetail, GameStatus } from "@/lib/types";
+import type { GameAnalysis, GameDetail, GameStatus, GameSummary, ParsedMove } from "@/lib/types";
 
 interface Position {
   signMap: number[][];
@@ -32,8 +32,16 @@ interface Position {
 }
 
 /** Seconds per move while playing. */
-const SPEEDS = [1, 2, 3, 5, 8, 10, 15, 20, 30];
+const SPEEDS = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30, 40, 50, 60];
 const DEFAULT_SPEED = 10;
+/**
+ * "every" choices stored as "real:<factor>": each move waits as long as its
+ * player took on the game's clock, times the factor. Only records from live
+ * servers have a clock.
+ */
+const REAL_FACTORS = [0.5, 1, 1.5, 2, 3];
+/** Real-time pacing never waits less, so a quick reply still shows before the next move. */
+const REAL_MIN_SECONDS = 1;
 
 /**
  * What the board shows. "analysis": the side to move's candidates. "guess":
@@ -43,8 +51,12 @@ const DEFAULT_SPEED = 10;
 type BoardMode = "analysis" | "guess" | "off";
 const MODES: BoardMode[] = ["analysis", "guess", "off"];
 
-/** Seconds a move's rating stays in guess mode; "hold" keeps it until the next move. */
-const REVEALS = [1, 2, 3, 5, 8];
+/**
+ * How long guess mode shows a move's analysis: a number of seconds, "next"
+ * (until the next move), or "accept" (until the viewer taps the board, with
+ * autoplay waiting meanwhile).
+ */
+const REVEALS = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15, 20];
 const DEFAULT_REVEAL = "3";
 /** reveal-in in globals.css: a 200ms wait, then a 250ms fade. */
 const REVEAL_FADE_IN_MS = 450;
@@ -58,18 +70,63 @@ interface Reveal {
   landed: boolean;
 }
 
+const BIG_BUTTON =
+  "flex w-full touch-manipulation items-center justify-center gap-2 rounded-sm border-2 bg-[#181818] hover:bg-[#222222] active:bg-[#2c2c2c]";
+
+function parseReveal(setting: string): string {
+  // Settings saved as "hold" mean what is now "next".
+  if (setting === "hold") return "next";
+  return setting === "next" || setting === "accept" || REVEALS.includes(Number(setting)) ? setting : DEFAULT_REVEAL;
+}
+
+/** The median seconds per move on the game's clock; null unless most moves have a time. */
+function typicalSeconds(moves: ParsedMove[]): number | null {
+  const known = moves.flatMap((m) => (m.seconds === undefined ? [] : [m.seconds])).sort((a, b) => a - b);
+  return known.length > 0 && known.length >= moves.length / 2 ? known[known.length >> 1] : null;
+}
+
+interface GameResult {
+  winner: "B" | "W" | "draw";
+  /** Shown in the winner's box: "+R", "+2.5", "+T"; "draw" shows in both. */
+  tag: string;
+  words: string;
+}
+
+function gameResult(re: string): GameResult | null {
+  const r = re.trim();
+  if (/^(0|draw|jigo)$/i.test(r)) return { winner: "draw", tag: "draw", words: "draw" };
+  const m = /^([BW])\+(.*)$/i.exec(r);
+  if (!m) return null;
+  const how = m[2].trim();
+  const [tag, words] =
+    how === ""
+      ? ["", "won"]
+      : /^r(esign)?$/i.test(how)
+        ? ["+R", "won by resignation"]
+        : /^t(ime)?$/i.test(how)
+          ? ["+T", "won on time"]
+          : /^f(orfeit)?$/i.test(how)
+            ? ["+F", "won by forfeit"]
+            : Number.isFinite(Number(how))
+              ? [`+${how}`, `won by ${how} points`]
+              : [`+${how}`, `won (${how})`];
+  return { winner: m[1].toUpperCase() as "B" | "W", tag, words };
+}
+
 function countStones(signMap: number[][], sign: number): number {
   let n = 0;
   for (const row of signMap) for (const v of row) if (v === sign) n++;
   return n;
 }
 
+/** Analysis mode labels circles "Delta + Visits" (the owner's Ogatak setting); guess mode only the Delta. */
 function candidateMarks(
   shown: BoardCandidate[],
   bestLead: number,
   side: "B" | "W",
   scale: number,
-  size: number
+  size: number,
+  withVisits: boolean
 ): BoardMark[] {
   const marks: BoardMark[] = [];
   for (const s of shown) {
@@ -78,7 +135,9 @@ function candidateMarks(
     marks.push({
       vertex,
       fill: costColour(s.cost, scale),
-      lines: [deltaLabel(bestLead, s.candidate.scoreLead, side), visitsLabel(s.candidate.visits)],
+      lines: withVisits
+        ? [deltaLabel(bestLead, s.candidate.scoreLead, side), visitsLabel(s.candidate.visits)]
+        : [deltaLabel(bestLead, s.candidate.scoreLead, side, 1)],
     });
   }
   return marks;
@@ -93,16 +152,24 @@ export function Replay({ id }: { id: number }) {
   const [modeSetting, setModeSetting] = useStoredString("replay.mode", "analysis");
   const [revealSetting, setRevealSetting] = useStoredString("replay.reveal", DEFAULT_REVEAL);
   const [reveal, setReveal] = useState<Reveal | null>(null);
-  const [revealResult, setRevealResult] = useState(false);
   const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
   const [analysisState, setAnalysisState] = useState("none");
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
-  const speed = SPEEDS.includes(Number(speedSetting)) ? Number(speedSetting) : DEFAULT_SPEED;
+  const moveCount = detail?.moves.length ?? 0;
+  const size = detail?.game.boardSize ?? 19;
   const mode: BoardMode = MODES.includes(modeSetting as BoardMode) ? (modeSetting as BoardMode) : "analysis";
-  const revealChoice =
-    revealSetting === "hold" || REVEALS.includes(Number(revealSetting)) ? revealSetting : DEFAULT_REVEAL;
-  const revealMs = revealChoice === "hold" ? null : Number(revealChoice) * 1000;
+  const revealChoice = parseReveal(revealSetting);
+  const revealMs = REVEALS.includes(Number(revealChoice)) ? Number(revealChoice) * 1000 : null;
+
+  const typical = useMemo(() => (detail ? typicalSeconds(detail.moves) : null), [detail]);
+  const factor = speedSetting.startsWith("real:") ? Number(speedSetting.slice(5)) : NaN;
+  const realTime = typical !== null && REAL_FACTORS.includes(factor);
+  const speed = SPEEDS.includes(Number(speedSetting)) ? Number(speedSetting) : DEFAULT_SPEED;
+  /** Seconds until autoplay plays the next move. */
+  const delay = realTime
+    ? Math.max(REAL_MIN_SECONDS, (detail?.moves[idx]?.seconds ?? typical ?? DEFAULT_SPEED) * factor)
+    : speed;
 
   useEffect(() => {
     fetch(`/data/games/${id}.json`)
@@ -123,9 +190,6 @@ export function Replay({ id }: { id: number }) {
       })
       .catch((e) => setError(String(e)));
   }, [id]);
-
-  const moveCount = detail?.moves.length ?? 0;
-  const size = detail?.game.boardSize ?? 19;
 
   const positions: Position[] = useMemo(() => {
     if (!detail) return [];
@@ -181,9 +245,9 @@ export function Replay({ id }: { id: number }) {
       const clamped = Math.max(0, Math.min(moveCount, next));
       if (clamped === idx) return;
       setIdx(clamped);
-      // A move that lands (stepping, playing, or jumping forward) gets its
-      // rating shown in guess mode; going back leaves a clean board to guess on.
-      setReveal((r) => (clamped > idx ? { idx: clamped, serial: (r?.serial ?? 0) + 1, on: true, landed: true } : null));
+      // Whichever way the viewer moved, the move now on the board is treated
+      // as just played, so guess mode shows its analysis.
+      setReveal((r) => (clamped > 0 ? { idx: clamped, serial: (r?.serial ?? 0) + 1, on: true, landed: true } : null));
       if (clamped >= moveCount) setPlaying(false);
     },
     [idx, moveCount]
@@ -196,12 +260,24 @@ export function Replay({ id }: { id: number }) {
     setPlaying((p) => !p);
   }, [idx, moveCount]);
 
-  // One timer per move, so the countdown bar and the move stay in step.
+  const lastPlayed = detail && idx > 0 ? detail.moves[idx - 1] : null;
+  const rating = useMemo(() => {
+    if (mode !== "guess" || !lastPlayed) return null;
+    const before = analysis?.positions[String(idx - 1)];
+    const after = analysis?.positions[String(idx)];
+    return rateMove(before, after, vertexToGtp(lastPlayed.vertex, size), lastPlayed.color);
+  }, [mode, lastPlayed, analysis, idx, size]);
+  const shownReveal = rating && reveal?.idx === idx ? reveal : null;
+  // "hold till accepted": autoplay waits while a move's analysis shows.
+  const holding = revealChoice === "accept" && !!shownReveal?.on;
+
+  // One timer per move, so the countdown bar and the move stay in step. A
+  // held analysis stops the clock; hiding it starts a full interval.
   useEffect(() => {
-    if (!playing || idx >= moveCount) return;
-    const timer = setTimeout(() => goTo(idx + 1), speed * 1000);
+    if (!playing || idx >= moveCount || holding) return;
+    const timer = setTimeout(() => goTo(idx + 1), delay * 1000);
     return () => clearTimeout(timer);
-  }, [playing, speed, idx, moveCount, goTo]);
+  }, [playing, delay, idx, moveCount, goTo, holding]);
 
   useEffect(() => {
     if (!reveal?.on || revealMs === null) return;
@@ -238,12 +314,13 @@ export function Replay({ id }: { id: number }) {
       else if (e.key === "Home") goTo(0);
       else if (e.key === "End") goTo(moveCount);
       else if (e.key === " ") togglePlay();
+      else if (e.key === "Enter" && mode === "guess") toggleReveal();
       else return;
       e.preventDefault();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [moveCount, goTo, step, togglePlay]);
+  }, [moveCount, goTo, step, togglePlay, toggleReveal, mode]);
 
   // progress tracking (throttled)
   const progressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -276,9 +353,6 @@ export function Replay({ id }: { id: number }) {
     }, 2000);
     return () => clearInterval(t);
   }, [analysisState, id]);
-
-  // result is revealed manually, or automatically at the last move
-  const resultRevealed = revealResult || (moveCount > 0 && idx >= moveCount);
 
   const setStatus = useCallback(
     (status: GameStatus) => {
@@ -315,7 +389,7 @@ export function Replay({ id }: { id: number }) {
     return (
       <div className="p-8 text-center">
         <p className="fs-emph font-bold">{error}</p>
-        <Link href="/" className="text-gold underline">
+        <Link href="/" className="underline">
           Back to library
         </Link>
       </div>
@@ -334,30 +408,33 @@ export function Replay({ id }: { id: number }) {
       : detail.moves[moveCount - 1]?.color === "B"
         ? "W"
         : "B";
+  // The result stays hidden until the last move is on the board.
+  const atEnd = moveCount > 0 && idx >= moveCount;
+  const result = atEnd ? gameResult(g.result) : null;
 
-  const lastPlayed = idx > 0 ? detail.moves[idx - 1] : null;
   let marks: BoardMark[] = [];
   let played: PlayedMark | null = null;
-  let rating: MoveRating | null = null;
   if (mode === "analysis") {
     const infos = positionCandidates(current);
     const { shown, scale } = selectCandidates(infos, sideToMove, current?.visits ?? 0);
-    marks = candidateMarks(shown, infos[0]?.scoreLead ?? 0, sideToMove, scale, size);
-  } else if (mode === "guess" && lastPlayed && reveal?.idx === idx) {
-    const before = analysis?.positions[String(idx - 1)];
-    rating = rateMove(before, current, vertexToGtp(lastPlayed.vertex, size), lastPlayed.color);
-    if (rating) {
-      marks = candidateMarks(rating.alternatives, rating.bestLead, lastPlayed.color, rating.scale, size);
-      if (lastPlayed.vertex) {
-        played = {
-          vertex: lastPlayed.vertex,
-          fill: costColour(rating.playedCost, rating.scale),
-          label: deltaLabel(rating.bestLead, rating.playedLead, lastPlayed.color),
-        };
-      }
+    marks = candidateMarks(shown, infos[0]?.scoreLead ?? 0, sideToMove, scale, size, true);
+  } else if (rating && shownReveal && lastPlayed) {
+    marks = candidateMarks(rating.alternatives, rating.bestLead, lastPlayed.color, rating.scale, size, false);
+    if (lastPlayed.vertex) {
+      played = {
+        vertex: lastPlayed.vertex,
+        fill: costColour(rating.playedCost, rating.scale),
+        label: deltaLabel(rating.bestLead, rating.playedLead, lastPlayed.color, 1),
+      };
     }
   }
-  const revealClass = !reveal ? "" : reveal.on ? (reveal.landed ? "reveal-in" : "reveal-now") : "reveal-out";
+  const revealClass = !shownReveal
+    ? ""
+    : shownReveal.on
+      ? shownReveal.landed
+        ? "reveal-in"
+        : "reveal-now"
+      : "reveal-out";
 
   const scoreLead = Array.from(
     { length: moveCount + 1 },
@@ -366,9 +443,13 @@ export function Replay({ id }: { id: number }) {
   const hasAnalysis = analysisState === "done" || (analysis !== null && analysisProgress > 0);
   const isPlaying = playing && idx < moveCount;
   const analysisTotal = moveCount + 1;
+  const players = <Players game={g} toPlay={atEnd ? null : sideToMove} result={result} />;
 
   return (
-    <div className="flex flex-col gap-3 lg:h-[calc(100vh_-_45px)] lg:flex-row lg:items-start lg:gap-4">
+    <div className="flex flex-col gap-2 lg:h-[calc(100vh_-_45px)] lg:flex-row lg:items-start lg:gap-4">
+      {/* Phones show the players above the board; desktop at the top of the panel. */}
+      <div className="lg:hidden">{players}</div>
+
       {/* The board takes the height (45px: the top bar and the page's vertical padding); the panel keeps at least about 430px. */}
       <div className="relative aspect-square w-full lg:w-[min(calc(100vh_-_45px),calc(100vw_-_31rem))] lg:flex-none">
         <Goban
@@ -381,126 +462,141 @@ export function Replay({ id }: { id: number }) {
           marksClassName={mode === "guess" ? revealClass : undefined}
           onBoardClick={mode === "guess" ? toggleReveal : undefined}
         >
-          {isPlaying && (
+          {isPlaying && !holding && (
             <div
-              key={`${idx}-${speed}`}
+              key={`${idx}-${delay}`}
               className="autoplay-progress absolute left-0 top-full mt-[3px] h-1 bg-gold"
-              style={{ animationDuration: `${speed}s` }}
+              style={{ animationDuration: `${delay}s` }}
             />
           )}
         </Goban>
       </div>
 
-      {/* Phones show these in order-* order; desktop keeps DOM order. */}
-      <div className="@container flex min-w-0 flex-1 flex-col gap-3 bg-[#111111] px-3 py-2 lg:h-full lg:overflow-y-auto lg:px-4">
-        <div className="order-4 grid grid-cols-2 gap-3 border-b border-[#333333] pb-3 lg:order-none @min-[560px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <PlayerBox colour="B" name={g.black} rank={g.blackRank} caps={pos.capturedByBlack} toPlay={sideToMove === "B"} />
-          <div className="fs-ui order-last col-span-2 flex flex-row flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center @min-[560px]:order-none @min-[560px]:col-span-1 @min-[560px]:flex-col">
-            <span>{g.datePlayed.slice(0, 10)}</span>
-            <span>
-              {g.handicap > 0 ? `HA ${g.handicap} · ` : ""}
-              {g.komi !== null ? `komi ${g.komi}` : ""}
-            </span>
-            {resultRevealed ? (
-              <span className="fs-emph font-bold">{g.result || "?"}</span>
-            ) : (
-              <button type="button" className="ctl fs-emph font-bold" onClick={() => setRevealResult(true)} title="Reveal result">
-                •••
-              </button>
-            )}
-          </div>
-          <PlayerBox colour="W" name={g.white} rank={g.whiteRank} caps={pos.capturedByWhite} toPlay={sideToMove === "W"} />
+      <div className="@container flex min-w-0 flex-1 flex-col gap-4 bg-[#111111] px-3 py-3 lg:h-full lg:overflow-y-auto lg:px-4">
+        <div className="hidden flex-col gap-2 lg:flex @min-[720px]:flex-row @min-[720px]:items-center @min-[720px]:gap-5">
+          <div className="min-w-0 flex-1">{players}</div>
+          <GameFacts game={g} pos={pos} />
         </div>
 
-        <div className="order-1 fs-ui flex flex-wrap items-center gap-x-5 gap-y-2 tracking-[1px] lg:order-none">
-          <div className="flex items-center">
-            <IconButton title="First move (Home)" onClick={() => goTo(0)}>
-              <ChevronFirst />
-            </IconButton>
-            <IconButton title="Previous move (←)" onClick={() => step(-1)}>
-              <ChevronLeft />
-            </IconButton>
+        <div className="flex select-none flex-col gap-2">
+          <button
+            type="button"
+            onClick={togglePlay}
+            title="Play / pause (space)"
+            className={`${BIG_BUTTON} h-12 ${isPlaying ? "border-gold" : "border-[#9a9a9a]"}`}
+          >
+            {isPlaying ? <Pause size={22} /> : <Play size={22} />}
+            <span className="fs-body font-bold">{isPlaying ? "pause" : "play"}</span>
+            {isPlaying && holding && <span className="fs-caption">· tap the board to go on</span>}
+          </button>
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={togglePlay}
-              title="Play / pause (space)"
-              className={`ctl flex h-10 items-center gap-2 border ${isPlaying ? "border-gold text-gold" : "border-[#555555]"}`}
+              title="Previous move (←)"
+              onClick={() => step(-1)}
+              className={`${BIG_BUTTON} h-16 border-[#9a9a9a]`}
             >
-              {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-              {isPlaying ? "pause" : "play"}
+              <ChevronLeft size={44} strokeWidth={2.5} />
             </button>
-            <IconButton title="Next move (→)" onClick={() => step(1)}>
-              <ChevronRight />
-            </IconButton>
-            <IconButton title="Last move (End)" onClick={() => goTo(moveCount)}>
-              <ChevronLast />
-            </IconButton>
+            <button
+              type="button"
+              title="Next move (→)"
+              onClick={() => step(1)}
+              className={`${BIG_BUTTON} h-16 border-[#9a9a9a]`}
+            >
+              <ChevronRight size={44} strokeWidth={2.5} />
+            </button>
           </div>
-          <div className="flex items-baseline gap-x-5">
-            <div className="flex items-baseline gap-2">
-              <span className="fs-caption text-gold">move</span>
-              <span className="fs-emph font-bold tabular-nums">{idx}</span>
-              <span className="tabular-nums">/ {moveCount}</span>
-            </div>
-            {mode === "guess" && (
-              // Kept even when empty, so nothing shifts when a rating appears.
-              <div className="flex min-w-[8.5rem] items-baseline">
-                {rating && (
-                  <span key={reveal?.serial} className={`flex items-baseline gap-2 whitespace-nowrap ${revealClass}`}>
-                    <span className="fs-caption text-gold">{lastPlayed?.vertex ? "lost" : "pass, lost"}</span>
-                    <span
-                      className="fs-emph rounded-sm px-1.5 font-bold tabular-nums text-black"
-                      style={{ background: costColour(rating.playedCost, rating.scale) }}
-                    >
-                      {rating.playedCost.toFixed(2)}
+          <div className="flex items-center gap-2">
+            <SmallButton title="First move (Home)" onClick={() => goTo(0)}>
+              <ChevronFirst size={18} />
+            </SmallButton>
+            <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-3">
+              <span className="whitespace-nowrap">
+                <span className="fs-caption">move </span>
+                <span className="fs-emph font-bold tabular-nums">{idx}</span>
+                <span className="fs-ui tabular-nums"> / {moveCount}</span>
+              </span>
+              {mode === "guess" && (
+                // Kept even when empty, so nothing shifts when a rating appears.
+                <span className="flex min-w-[6.5rem] items-baseline">
+                  {rating && shownReveal && lastPlayed && (
+                    <span key={shownReveal.serial} className={`flex items-baseline gap-2 whitespace-nowrap ${revealClass}`}>
+                      <span className="fs-caption">{lastPlayed.vertex ? "lost" : "pass lost"}</span>
+                      <span
+                        className="fs-emph rounded-sm px-1.5 font-bold tabular-nums text-black"
+                        style={{ background: costColour(rating.playedCost, rating.scale) }}
+                      >
+                        {rating.playedCost.toFixed(2)}
+                      </span>
                     </span>
-                  </span>
-                )}
-              </div>
-            )}
+                  )}
+                </span>
+              )}
+            </div>
+            <SmallButton title="Last move (End)" onClick={() => goTo(moveCount)}>
+              <ChevronLast size={18} />
+            </SmallButton>
           </div>
-          <label className="flex items-center gap-2" title="Time between moves while playing">
-            <span className="font-bold text-gold">every</span>
-            <select value={speed} onChange={(e) => setSpeedSetting(e.target.value)} className="field">
-              {SPEEDS.map((s) => (
-                <option key={s} value={s}>
-                  {s} s
-                </option>
-              ))}
-            </select>
-          </label>
-          <label
-            className="flex items-center gap-2"
-            title="analysis: the engine's candidates before each move. guess: nothing until the move is played, then its rating and the other options for a while. off: stones only."
-          >
-            <span className="font-bold text-gold">mode</span>
-            <select value={mode} onChange={(e) => changeMode(e.target.value)} className="field">
-              {MODES.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-          {mode === "guess" && (
+          <div className="fs-caption flex flex-wrap items-center gap-x-5 gap-y-2">
             <label
               className="flex items-center gap-2"
-              title="How long a move's rating stays after it is played; hold keeps it until the next move. Tap the board to show it again or hide it."
+              title="Time between moves while playing. The real choices wait as long as the player took on the game's clock, times the factor; only records from live servers have a clock."
             >
-              <span className="font-bold text-gold">reveal</span>
-              <select value={revealChoice} onChange={(e) => setRevealSetting(e.target.value)} className="field">
-                {REVEALS.map((s) => (
-                  <option key={s} value={s}>
+              every
+              <select
+                value={realTime ? speedSetting : String(speed)}
+                onChange={(e) => setSpeedSetting(e.target.value)}
+                className="field fs-ui"
+              >
+                {SPEEDS.map((s) => (
+                  <option key={s} value={String(s)}>
                     {s} s
                   </option>
                 ))}
-                <option value="hold">hold</option>
+                <optgroup label={typical === null ? "as the players took (no clock in this record)" : "as the players took"}>
+                  {REAL_FACTORS.map((f) => (
+                    <option key={f} value={`real:${f}`} disabled={typical === null}>
+                      real ×{f}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </label>
-          )}
+            <label
+              className="flex items-center gap-2"
+              title="analysis: the engine's candidates before each move. guess: a clean board before each move; after it, its rating and the other options. off: stones only."
+            >
+              mode
+              <select value={mode} onChange={(e) => changeMode(e.target.value)} className="field fs-ui">
+                {MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {mode === "guess" && (
+              <label
+                className="flex items-center gap-2"
+                title="How long a move's analysis shows once it is on the board, whether you stepped forward or back. 'hold till accepted' keeps it, and holds autoplay, until you tap the board. Tap the board (or press Enter) any time to show or hide it."
+              >
+                show analysis
+                <select value={revealChoice} onChange={(e) => setRevealSetting(e.target.value)} className="field fs-ui">
+                  {REVEALS.map((s) => (
+                    <option key={s} value={String(s)}>
+                      {s} s
+                    </option>
+                  ))}
+                  <option value="next">until next move</option>
+                  <option value="accept">hold till accepted</option>
+                </select>
+              </label>
+            )}
+          </div>
         </div>
 
-        <div className="order-2 flex flex-col gap-3 lg:order-none">
+        <div className="flex flex-col gap-3">
           {hasAnalysis ? (
             <ReviewCharts
               scoreLead={scoreLead}
@@ -515,7 +611,7 @@ export function Replay({ id }: { id: number }) {
             SITE_MODE === "lan" ? (
               <p className="fs-body">
                 {analysisState === "queued" ? "Queued for analysis" : "Analyzing"}: {analysisProgress}/{analysisTotal}{" "}
-                positions. The worker runs on the GPU machine: <code className="text-gold">npm run analyze</code>
+                positions. The worker runs on the GPU machine: <code className="font-bold">npm run analyze</code>
               </p>
             ) : (
               <p className="fs-body">Analysis is in progress for this game; it appears here once published.</p>
@@ -541,14 +637,18 @@ export function Replay({ id }: { id: number }) {
           )}
         </div>
 
-        <div className="order-5 fs-ui flex flex-col gap-2 border-t border-[#333333] pt-3 lg:order-none">
+        <div className="lg:hidden">
+          <GameFacts game={g} pos={pos} />
+        </div>
+
+        <div className="fs-ui flex flex-col gap-2 border-t border-[#333333] pt-3">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-bold">status</span>
-            <span className="text-gold">{g.status}</span>
-            <button type="button" className="ctl" onClick={() => setStatus("played")}>
+            <span>status</span>
+            <span className="font-bold">{g.status}</span>
+            <button type="button" className="ctl ml-2 border border-[#555555]" onClick={() => setStatus("played")}>
               mark played
             </button>
-            <button type="button" className="ctl" onClick={() => setStatus("done")}>
+            <button type="button" className="ctl border border-[#555555]" onClick={() => setStatus("done")}>
               move to done
             </button>
           </div>
@@ -557,18 +657,19 @@ export function Replay({ id }: { id: number }) {
           ) : (
             g.tags.length > 0 && (
               <div className="flex flex-wrap items-center gap-x-2">
-                <span className="font-bold">tags</span>
-                <span className="text-gold">{g.tags.join(", ")}</span>
+                <span>tags</span>
+                <span className="font-bold">{g.tags.join(", ")}</span>
               </div>
             )
           )}
           <div className="fs-caption flex flex-wrap items-center justify-between gap-2">
-            <Link href="/" className="text-gold underline">
+            <Link href="/" className="underline">
               ← library
             </Link>
             {analysis && (
               <span>
-                {analysis.engine} · {analysis.maxVisits} visits · {analysisProgress}/{analysisTotal} positions
+                {analysis.engine} · {analysis.maxVisits.toLocaleString("en-US")} visits per position ·{" "}
+                {analysisProgress}/{analysisTotal} positions
               </span>
             )}
           </div>
@@ -578,11 +679,41 @@ export function Replay({ id }: { id: number }) {
   );
 }
 
-function IconButton({ title, onClick, children }: { title: string; onClick: () => void; children: ReactNode }) {
+function SmallButton({ title, onClick, children }: { title: string; onClick: () => void; children: ReactNode }) {
   return (
-    <button type="button" title={title} onClick={onClick} className="ctl flex h-10 w-10 items-center justify-center p-0">
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="flex h-9 w-10 flex-none touch-manipulation items-center justify-center rounded-sm border border-[#777777] hover:bg-[#222222]"
+    >
       {children}
     </button>
+  );
+}
+
+/**
+ * White, then Black, as in the library. Each box is its stone's colour and
+ * holds only the handle and rank; a gold ring marks the side to move, and at
+ * the last move the winner's box carries the result.
+ */
+function Players({
+  game,
+  toPlay,
+  result,
+}: {
+  game: GameSummary;
+  toPlay: "B" | "W" | null;
+  result: GameResult | null;
+}) {
+  const tagFor = (colour: "B" | "W") =>
+    result && (result.winner === colour || result.winner === "draw") ? result : null;
+  return (
+    // The padding leaves room for the ring, which is drawn outside the box.
+    <div className="grid grid-cols-2 gap-3 p-[5px]">
+      <PlayerBox colour="W" name={game.white} rank={game.whiteRank} toPlay={toPlay === "W"} result={tagFor("W")} />
+      <PlayerBox colour="B" name={game.black} rank={game.blackRank} toPlay={toPlay === "B"} result={tagFor("B")} />
+    </div>
   );
 }
 
@@ -590,41 +721,58 @@ function PlayerBox({
   colour,
   name,
   rank,
-  caps,
   toPlay,
+  result,
 }: {
   colour: "B" | "W";
   name: string;
   rank: string;
-  caps: number;
   toPlay: boolean;
+  result: GameResult | null;
 }) {
   const white = colour === "W";
   return (
     <div
-      className={`flex min-w-0 items-center gap-3 border px-3 py-2 ${white ? "flex-row-reverse text-right" : ""} ${
-        toPlay ? "border-gold bg-[#262216]" : "border-[#333333] bg-[#181818]"
-      }`}
+      title={[name, rank, result?.words].filter(Boolean).join(" · ")}
+      className={`flex min-w-0 items-baseline gap-2 rounded-sm px-3 py-1 ${
+        white ? "border border-white bg-white text-black" : "border border-white/60 bg-black text-white"
+      } ${toPlay ? "outline-3 outline-offset-2 outline-gold" : ""}`}
     >
-      <span
-        className="inline-block size-8 flex-none rounded-full"
-        style={{
-          background: white
-            ? "radial-gradient(circle at 35% 30%, #ffffff, #d2d2d2 75%)"
-            : "radial-gradient(circle at 35% 30%, #5a5a5a, #0a0a0a 70%)",
-        }}
-      />
-      <div className="min-w-0">
-        <div className={`fs-caption flex flex-wrap gap-x-3 font-bold tracking-[0.14em] ${white ? "justify-end" : ""}`}>
-          <span>{white ? "WHITE" : "BLACK"}</span>
-          {toPlay && <span className="whitespace-nowrap text-gold">TO PLAY</span>}
-        </div>
-        <div className="fs-body font-bold [overflow-wrap:anywhere] @min-[560px]:fs-emph">
-          {name}
-          {rank && <span className="fs-caption ml-2 font-normal">{rank}</span>}
-        </div>
-        <div className="fs-caption">caps {caps}</div>
-      </div>
+      <span className="fs-body sm:fs-emph min-w-0 truncate font-bold">{handleOf(name)}</span>
+      {rank && <span className="fs-caption sm:fs-body flex-none">{rank}</span>}
+      {result && (
+        <span className="ml-auto flex flex-none items-baseline gap-1.5">
+          {result.winner !== "draw" && <span className="fs-fine sm:fs-caption">won</span>}
+          {result.tag && <span className="fs-body sm:fs-emph font-bold">{result.tag}</span>}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MiniStone({ colour }: { colour: "B" | "W" }) {
+  return (
+    <span
+      className={`inline-block size-3.5 flex-none rounded-full ${
+        colour === "W" ? "bg-white" : "border border-white/70 bg-black"
+      }`}
+    />
+  );
+}
+
+/** Handicap, komi, date and captures: small, beside the players on a wide panel. */
+function GameFacts({ game, pos }: { game: GameSummary; pos: Position }) {
+  return (
+    <div className="fs-caption flex flex-wrap items-center gap-x-4 gap-y-0.5 @min-[720px]:flex-col @min-[720px]:items-end">
+      {game.handicap > 0 && <span>H{game.handicap}</span>}
+      {game.komi !== null && <span>komi {game.komi}</span>}
+      <span>{playedOn(game)}</span>
+      <span className="flex items-center gap-1.5 whitespace-nowrap" title="Stones each side has captured">
+        captures <MiniStone colour="W" />
+        <span className="tabular-nums">{pos.capturedByWhite}</span>
+        <MiniStone colour="B" />
+        <span className="tabular-nums">{pos.capturedByBlack}</span>
+      </span>
     </div>
   );
 }

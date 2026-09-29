@@ -49,7 +49,8 @@ function createSchema(db: Database.Database) {
       analysis_progress INTEGER NOT NULL DEFAULT 0,
       analysis_json TEXT,
       analysis_engine TEXT NOT NULL DEFAULT '',
-      analysis_updated_at TEXT
+      analysis_updated_at TEXT,
+      analysis_visits INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,14 +155,40 @@ function seedIfEmpty(db: Database.Database) {
   }
 }
 
+/**
+ * Columns added after the first release. `analysis_visits` is the visits per
+ * position of the last complete analysis, so the worker can find games to
+ * analyse again more deeply.
+ */
+function migrate(db: Database.Database) {
+  const columns = db.prepare("PRAGMA table_info(games)").all() as { name: string }[];
+  if (!columns.some((c) => c.name === "analysis_visits")) {
+    db.exec("ALTER TABLE games ADD COLUMN analysis_visits INTEGER NOT NULL DEFAULT 0");
+    db.exec(
+      `UPDATE games SET analysis_visits = COALESCE(json_extract(analysis_json, '$.maxVisits'), 0)
+       WHERE analysis_state = 'done'`
+    );
+  }
+}
+
+// The dev server keeps its database handle across reloads, so migrations are
+// checked once per load of this module rather than only when the file opens.
+let migrated = false;
+
 export function getDb(): Database.Database {
-  if (globalThis.__goReplayDb) return globalThis.__goReplayDb;
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
-  createSchema(db);
-  seedIfEmpty(db);
-  globalThis.__goReplayDb = db;
+  let db = globalThis.__goReplayDb;
+  if (!db) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    db = new Database(DB_PATH);
+    db.pragma("journal_mode = WAL");
+    createSchema(db);
+    seedIfEmpty(db);
+    globalThis.__goReplayDb = db;
+  }
+  if (!migrated) {
+    migrate(db);
+    migrated = true;
+  }
   return db;
 }
 
@@ -249,7 +276,8 @@ export function mergeAnalysisResults(
     | undefined;
   if (!row) return { ok: false, progress: 0 };
 
-  const existing: GameAnalysis = getAnalysis(row) ?? {
+  const previous = getAnalysis(row);
+  const existing: GameAnalysis = previous ?? {
     engine: payload.engine ?? "",
     model: payload.model ?? "",
     maxVisits: payload.maxVisits ?? 0,
@@ -258,27 +286,35 @@ export function mergeAnalysisResults(
   };
   if (payload.engine) existing.engine = payload.engine;
   if (payload.model) existing.model = payload.model;
-  if (payload.maxVisits) existing.maxVisits = payload.maxVisits;
+  // A deeper run replaces positions as they arrive; the game is only credited
+  // with the new visits once every position has them.
+  const complete = !!payload.done && !payload.error;
+  if (payload.maxVisits && (complete || !previous)) existing.maxVisits = payload.maxVisits;
   existing.updatedAt = new Date().toISOString();
   for (const pos of payload.positions ?? []) {
     existing.positions[String(pos.turn)] = pos;
   }
   const progress = Object.keys(existing.positions).length;
 
-  let state = row.analysis_state;
-  if (payload.error) state = "error";
-  else if (payload.done) state = "done";
+  // A game analysed again stays "done" throughout, and after a failed run,
+  // so it never leaves the library's "analysis done" filter.
+  const deepening = row.analysis_state === "done";
+  let state: string;
+  if (payload.error) state = deepening ? "done" : "error";
+  else if (payload.done || deepening) state = "done";
   else state = "running";
+  const visits = complete && payload.maxVisits ? payload.maxVisits : row.analysis_visits;
 
   db.prepare(
     `UPDATE games SET analysis_json = ?, analysis_progress = ?, analysis_state = ?,
-       analysis_engine = ?, analysis_updated_at = ? WHERE id = ?`
+       analysis_engine = ?, analysis_updated_at = ?, analysis_visits = ? WHERE id = ?`
   ).run(
     JSON.stringify(existing),
     progress,
     state,
     existing.engine,
     new Date().toISOString(),
+    visits,
     gameId
   );
   return { ok: true, progress };
@@ -314,7 +350,14 @@ export function queueGames(
     .run(now, staleCutoff).changes;
 }
 
-export function takeNextQueuedGame(db: Database.Database): GameRow | null {
+/**
+ * The next game for the worker: the oldest queued game, or else, when the
+ * worker asks with `deepenBelow`, the newest analysed game whose analysis has
+ * fewer visits per position. The returned row keeps its state from before
+ * the hand-out, so "done" marks a game being analysed again.
+ */
+export function takeNextQueuedGame(db: Database.Database, deepenBelow = 0): GameRow | null {
+  const now = new Date().toISOString();
   const staleCutoff = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
   const row = db
     .prepare(
@@ -324,11 +367,24 @@ export function takeNextQueuedGame(db: Database.Database): GameRow | null {
        ORDER BY analysis_updated_at ASC LIMIT 1`
     )
     .get(staleCutoff) as GameRow | undefined;
-  if (!row) return null;
-  db.prepare(
-    `UPDATE games SET analysis_state = 'running', analysis_updated_at = ? WHERE id = ?`
-  ).run(new Date().toISOString(), row.id);
-  return row;
+  if (row) {
+    db.prepare(`UPDATE games SET analysis_state = 'running', analysis_updated_at = ? WHERE id = ?`).run(now, row.id);
+    return row;
+  }
+  if (deepenBelow <= 0) return null;
+  // Touching analysis_updated_at keeps the same game from being handed out
+  // again for STALE_RUNNING_MS while its state stays "done".
+  const shallow = db
+    .prepare(
+      `SELECT * FROM games
+       WHERE analysis_state = 'done' AND analysis_visits < ?
+         AND (analysis_updated_at IS NULL OR analysis_updated_at < ?)
+       ORDER BY id DESC LIMIT 1`
+    )
+    .get(deepenBelow, staleCutoff) as GameRow | undefined;
+  if (!shallow) return null;
+  db.prepare(`UPDATE games SET analysis_updated_at = ? WHERE id = ?`).run(now, shallow.id);
+  return shallow;
 }
 
 export function analysisQueueStatus(db: Database.Database) {

@@ -33,14 +33,17 @@ interface GobanProps {
 
 // Matches ogatak-clear's board (board_drawer.js, gridlines.js and the owner's
 // config): wood #d0ad75, 1px black grid, 3px star points, no coordinates,
-// candidate circles the size of a stone with black Arial text, and a red dot
-// on the last move.
+// candidate circles the size of a stone with black text in the page's font,
+// and a red dot on the last move.
 const WOOD = "#d0ad75";
 const GRID = "#000000";
 const LAST_MOVE = "#ff6666";
-const LABEL_FONT = "Arial, Helvetica, sans-serif";
-/** Radius of the played-move disc in squares; its stone (0.48) shows around it as a rim, like Ogatak's next-move ring. */
-const PLAYED_DISC = 0.38;
+/**
+ * Radius of the played-move disc in squares. Its stone (0.48) shows around it
+ * as a thick rim, so the move just played stands apart from the candidate
+ * circles on empty points.
+ */
+const PLAYED_DISC = 0.3;
 
 function hoshiPoints(size: number): [number, number][] {
   if (size === 19) {
@@ -56,11 +59,11 @@ function hoshiPoints(size: number): [number, number][] {
   return [];
 }
 
-/** ogatak board_font_chooser: the largest font whose `sample` fits in 59% of a square. */
-function fitFontPx(ctx: CanvasRenderingContext2D, square: number, sample: string): number {
-  ctx.font = `100px ${LABEL_FONT}`;
-  const per100 = ctx.measureText(sample).width;
-  return Math.max(6, Math.floor((0.59 * square * 100) / per100));
+/** The largest font (in `font`, a "{size}px family" template) at which every text in `samples` fits in `width`. */
+function fitFontPx(ctx: CanvasRenderingContext2D, font: (px: number) => string, width: number, samples: string[]): number {
+  ctx.font = font(100);
+  const per100 = Math.max(1, ...samples.map((s) => ctx.measureText(s).width));
+  return Math.max(6, Math.floor((width * 100) / per100));
 }
 
 /** Sizes a canvas to the board and returns its context and square size; whole-pixel squares keep 1px lines sharp. */
@@ -172,9 +175,17 @@ export function Goban({
       if (!board) return;
       const { ctx, square, centre } = board;
 
+      // Two lines (Delta + Visits) follow ogatak board_font_chooser: "999"
+      // fills 59% of a square. A single Delta line is bold and as large as the
+      // widest label allows, up to 42% of a square.
+      const family = getComputedStyle(canvas).fontFamily;
       const twoLines = marks.some((m) => m.lines.length >= 2);
-      const fontPx = fitFontPx(ctx, square, twoLines ? "999" : "111");
-      ctx.font = `${fontPx}px ${LABEL_FONT}`;
+      const font = (px: number) => `${twoLines ? "" : "bold "}${px}px ${family}`;
+      const labels = [...marks.map((m) => m.lines[0] ?? ""), played?.label ?? ""];
+      const fontPx = twoLines
+        ? fitFontPx(ctx, font, 0.59 * square, ["999"])
+        : Math.min(Math.floor(0.42 * square), fitFontPx(ctx, font, 0.8 * square, labels));
+      ctx.font = font(fontPx);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       for (const m of marks) {
@@ -203,9 +214,7 @@ export function Goban({
         ctx.fillStyle = played.fill;
         ctx.fill();
         // Same size as the candidates' text unless the label would spill onto the rim.
-        const width = ctx.measureText(played.label).width;
-        const room = 2 * square * PLAYED_DISC * 0.92;
-        if (width > room) ctx.font = `${Math.max(6, Math.floor((fontPx * room) / width))}px ${LABEL_FONT}`;
+        ctx.font = font(Math.min(fontPx, fitFontPx(ctx, font, 2 * square * PLAYED_DISC * 0.92, [played.label])));
         ctx.fillStyle = "#000000";
         ctx.fillText(played.label, cx, cy + 1);
       }
@@ -220,7 +229,7 @@ export function Goban({
   // Fills a positioned parent, which must have its own size.
   return (
     <div ref={containerRef} className="absolute inset-0 flex items-start justify-center">
-      <div className={`relative ${onBoardClick ? "cursor-pointer" : ""}`} onClick={onBoardClick}>
+      <div className={`relative ${onBoardClick ? "cursor-pointer touch-manipulation select-none" : ""}`} onClick={onBoardClick}>
         <canvas ref={canvasRef} className="block" />
         <canvas
           key={marksKey}

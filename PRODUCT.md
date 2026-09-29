@@ -8,10 +8,12 @@ of time on your own GPU.
 The UI copies the owner's Ogatak fork,
 [ernop/ogatak-clear](https://github.com/ernop/ogatak-clear), and the settings in
 the owner's own Ogatak `config.json`: near-black background (`#080808`), a
-`#111111` panel, white text, amber (`#e0b872`) labels, one monospace font, and a
-wood board. Decided 2026-09-26 after the first review screen drifted from
-Ogatak's meanings, labels, and style: where this app differs from ogatak-clear,
-the reason is written below.
+`#111111` panel, white text, and a wood board. Decided 2026-09-26 after the
+first review screen drifted from Ogatak's meanings, labels, and style: where
+this app differs from ogatak-clear, the reason is written below. Since
+2026-09-29 the replayer uses one standard sans-serif font instead of Ogatak's
+monospace, and white rather than amber labels (see "The replayer's
+direction").
 
 ## Core workflow
 
@@ -20,16 +22,21 @@ the reason is written below.
 2. The library shows an **Up next** card: the first game with status `new`. Its result
    is hidden behind a "reveal result" toggle so nothing gets spoiled. **Approve &
    watch** opens the replayer; **Skip** marks it `skipped` and offers the next one.
-3. The replayer plays through the game with standard controls: first / previous /
-   next / last move, plus **play** (autoplay). Keyboard: `←`/`→` one move,
-   `↓`/`↑` ten moves, `Home`/`End`, `Space` = play/pause.
-   Autoplay (decided 2026-09-26): the default is 10 s per move, chosen from a
-   small "every [10 s]" dropdown (1–30 s) in the control bar, because a big
-   slider gave too much room to a minor setting. While playing, a gold bar
-   under the board fills toward the next move, so a move never lands without
-   warning. Each move gets its own timer, so the bar and the move stay in step.
-   The speed, the board mode (see "Guess mode"), the reveal time, and each
-   chart's scale and window are remembered in the browser.
+3. The replayer plays through the game with two big one-move buttons, a
+   play/pause button above them, and small first / last move buttons (see
+   "Review screen"). Keyboard: `←`/`→` one move, `↓`/`↑` ten moves,
+   `Home`/`End`, `Space` = play/pause, `Enter` = show or hide guess mode's
+   analysis.
+   Autoplay (decided 2026-09-26, widened 2026-09-29): the default is 10 s per
+   move, chosen from a small "every [10 s]" dropdown, because a big slider
+   gave too much room to a minor setting. It offers 0.5–60 s in 21 steps
+   (0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30, 40, 50,
+   60; the owner asked for "more gradations"), plus the players' own times
+   (see "Real-time pacing"). While playing, a gold bar under the board fills
+   toward the next move, so a move never lands without warning. Each move gets
+   its own timer, so the bar and the move stay in step. The speed, the board
+   mode (see "Guess mode"), how long guess mode shows its analysis, and each
+   chart's scale, window and open/closed state are remembered in the browser.
 4. **Begin analysis** (library toolbar) queues every unanalyzed game. A separate
    worker process on the GPU machine drains the queue and posts results back to the
    server, so analysis is *pre-computed* and viewable later from any device (e.g.
@@ -148,20 +155,107 @@ the public copy.
 - Per position (turn 0..N): winrate, score lead, visits, and **every move KataGo
   reported** (coordinate, winrate, score lead, visits, short PV). There is no
   stored cap. A move KataGo never visited is still valued from the root of the
-  position after it was played (`source: "continuation"`). Default 400 visits
-  per position (`--visits` to change).
+  position after it was played (`source: "continuation"`). 10,000 visits per
+  position by default (`--visits` to change; see "Analysis depth").
 - `--mock` mode generates plausible fake data (engine label "MockEngine (demo
   data)") so the UI works without a GPU; used for demos/tests only.
 
-## Review screen (decided 2026-09-26, follows ogatak-clear)
+## Analysis depth (decided 2026-09-29)
+
+The owner: "we shall do all analysis (new ones and also redo all old ones on
+the actual site) til we have at least 10k nodes covered for every step, every
+move. the current analysis is a bit too short — many of the options literally
+only have 40 nodes as backing them up!"
+
+- Every position of every analysed game gets at least **10,000 visits**. At
+  1,000, the alternatives on the board often rested on 10–70 visits. At 10,000
+  a middle-game position's top six moves get a few hundred to a few thousand
+  each (game 580, move 31: 4,720, 2,745, 614, 282, 244 and 203), and the board's
+  visit minimum (1% of the position) becomes 100.
+- The worker's default is `--visits 10000`. When nothing is queued, it takes
+  the newest analysed game whose analysis has fewer visits and analyses it
+  again. The `analysis_visits` column holds the visits of each game's last
+  complete run.
+  - The game stays `done` throughout, so it never leaves the library's
+    "analysis done" filter, here or on the public copy.
+  - New positions replace old ones as they arrive, and the game counts as
+    deeper only once the run completes.
+  - A failed run leaves the game `done` with its old analysis, and it is tried
+    again after 15 minutes.
+  - `--no-deepen` turns this off, and `--mock` never deepens, so fake data
+    cannot replace real analysis.
+- Cost on the PC (RTX 3090, b10c512 net): `scripts/katago-analysis.cfg`
+  searches 4 positions at once, 16 threads each, in batches of 64. That
+  measured ~1,890 visits/s, against ~1,390 one position at a time, with the
+  GPU then ~95% busy, so more parallelism would not help. In the first real
+  run a position took ~4.5 s: about 15 min for a 200-move game, and about
+  2.4 h to redo the 11 games analysed at 1,000 visits (started 2026-09-29).
+- The public copy picks the deeper analysis up with its usual data publish, at
+  most every 30 minutes.
+
+## The replayer's direction (the owner's requests of 2026-09-29)
+
+The owner, about the replay page: "never use name, always use username only.
+Don't repeat the word white/black rather use either textcolor or large stone
+with background having distinguishable color to indicate such. the main top
+right shall be a border indicating whose turn, the background should indicate
+their color, just the username and rank. move komi, date to the side, and make
+it subtle. move caps subtle. remove the result data entirely — only show that
+once the game is fully done or user hit the arrow to zoom to end of game. use
+standard font everywhere varying in size / prominence only. make control
+buttons full width and each have a clear border. one row shall say play/pause
+next row shall say left/right only. then smaller and out of the way, do the
+full zoom to first move, or full zoom to end of game. the point mainly is that
+it should be super easy to use left/right one move."
+
+And about guess mode: more "every" steps, plus the players' own time per move
+("if the player took n seconds we shall also take n, or 2x n"); "reveal"
+renamed "show analysis"; circles that "only say the differential on that
+move"; a gradient of "green to subtle red, no browns"; at least 10,000 visits
+per position (see "Analysis depth"); openers for the two charts that remember
+their state; "when i hit 'back 1' ... act as if this was a newly shown move";
+a mode that keeps the analysis "until i tap to go on to the guess stage"
+("hold til accepted"); and a smaller disc on the played stone "so it's more
+obvious which move was just played!"
+
+What these say about what the owner wants, and so how to decide future
+questions:
+
+- **The board and one-move stepping are the product.** The page is mostly
+  used on a phone in bed, and the action repeated hundreds of times a game is
+  one move forward or back. Those two buttons are the biggest controls, with
+  play/pause just above them; jumps and settings are small and out of the way.
+- **Colour says who; words only say names and values.** Sides are shown as the
+  board shows them, in black and white, never with the words "Black" and
+  "White". A player is their server handle, not their real name.
+- **Quiet until it matters.** Komi, date and captures are seldom needed, so
+  they are small and to the side. The result matters once, at the end, and is
+  otherwise absent; even a reveal button invites the spoiler.
+- **One plain font; hierarchy from size and weight.** No monospace, no
+  colour-coded labels.
+- **Guess first, then judge, at the viewer's pace and in both directions.**
+  The owner studies by predicting each move, and the analysis is the answer
+  key. It comes back when a move is revisited, and it can wait for the viewer
+  instead of timing out, so autoplay never outruns thinking.
+- **Numbers must be trustworthy, and few.** An option backed by 40 visits is
+  noise. On the board, guess mode says only how much worse each option was.
+- **A calm colour language.** Good is green, bad a soft red, and nothing in
+  between looks muddy; the played stone stays recognisable as a stone.
+- **The game's own rhythm, when the record has it.** Pacing can follow how
+  long the players really took.
+
+The "think carefully" moments below should follow the same rules.
+
+## Review screen (decided 2026-09-26, follows ogatak-clear; revised 2026-09-29)
 
 **Never show the future.** A replay is watched without spoilers: nothing on
 screen may depend on moves not yet reached. There is no marker on the move
 that will be played next. The charts end at the current move. The worker's
 stored value for a played move KataGo did not report (`source:
 "continuation"`) is never drawn as a candidate before the move; guess mode
-shows the played move's value only once it is on the board. The result stays
-behind "•••" until revealed or until the last move.
+shows the played move's value only once it is on the board. The result is not
+shown at all until the last move is on the board, whether reached by stepping
+or with the last-move button; there is no reveal button.
 
 **Board** (ogatak `board_drawer.js` with the owner's config):
 
@@ -176,14 +270,19 @@ behind "•••" until revealed or until the last move.
   stored visits, 50 hid most real alternatives: all 6 circles showed in only
   27% of positions. The minimum here is therefore 1% of the position's
   visits, which is 10 at 1,000 visits and 50 at 5,000.
-- Each circle is stone-sized and filled from ogatak-clear's `green_red`
-  palette. Colours are interpolated in linear sRGB, with the scale ending at
-  the worst shown move (minimum 0.5 points).
-- Each circle holds two lines of black Arial text: "Delta" (for example
-  "0" or "-0.42", this move's score minus the best move's, for the side to
-  move) and "Visits". This matches the owner's Ogatak setting
-  `numbers: "Delta + Visits"`. The text is sized as in Ogatak's
-  `board_font_chooser`, so "999" fills 59% of a square.
+- Each circle is stone-sized and filled from one best-to-worst gradient:
+  green `#1fc46a`, `#8fd957`, yellow `#ecea6a`, light orange `#fbb870`, and
+  a soft red `#f47c7c`. It replaced ogatak-clear's `green_red` on 2026-09-29,
+  whose orange and dark red read as brown (the owner: "green to subtle red,
+  no browns"). Every stop is light enough to stand off the wood and to carry
+  black text. Colours are interpolated in linear sRGB, with the scale ending
+  at the worst shown move (minimum 0.5 points).
+- In analysis mode each circle holds two lines of black text in the page's
+  font: "Delta" (for example "0" or "-0.42", this move's score minus the best
+  move's, for the side to move) and "Visits". This matches the owner's Ogatak
+  setting `numbers: "Delta + Visits"`. The text is sized as in Ogatak's
+  `board_font_chooser`, so "999" fills 59% of a square. Guess mode's circles
+  hold only the Delta (see "Guess mode").
 - A "mode" dropdown chooses what the board shows: `analysis` (these
   circles, for the side to move), `guess` (see "Guess mode"), or `off`
   (stones only; it replaced the "candidates on/off" toggle).
@@ -191,21 +290,39 @@ behind "•••" until revealed or until the last move.
 **Panel** (everything right of the board on desktop; below it on phones),
 top to bottom:
 
-- **Players strip:** Black box, then game info, then White box. The side to
-  move is highlighted with a gold border and marked "TO PLAY". In a panel
-  narrower than 560 px the two boxes sit side by side and the info goes
-  underneath.
-- **Control bar:** navigation, the move counter, the speed dropdown, and the
-  mode dropdown. In guess mode it also holds the last move's "lost" readout
-  and the reveal dropdown.
-- **MOVE QUALITY:** a port of ogatak `draw_quality`. One bar per move fills
+- **Players:** White's box, then Black's, as in the library. Each box is its
+  stone's colour, white with black text or black with white text and a thin
+  white border, and holds only the handle and rank: "adum 3d", never "adam
+  miller (adum)", and no "WHITE", "BLACK" or "TO PLAY". A gold ring (3 px,
+  2 px out from the box) marks the side to move. At the last move the ring
+  goes, and the winner's box adds "won +R" (+R, +T, +F or the points; "draw"
+  in both boxes for a jigo), with the words ("won by resignation") on hover.
+  On phones the boxes sit above the board and their text is a size smaller,
+  so a result still fits beside a short handle.
+- **Game facts:** the handicap ("H3"), komi, start date, and captures (a small
+  white and black stone, each with the stones that side has taken), all in
+  caption size. They sit beside the players, stacked, when the panel is at
+  least 720 px wide, and in one line underneath otherwise; on phones, below
+  the charts.
+- **Controls** (the owner: "the point mainly is that it should be super easy
+  to use left/right one move"):
+  - a full-width play/pause button with a clear 2 px border, gold while
+    playing;
+  - under it, previous and next move as two half-width 64 px buttons holding
+    only an arrow;
+  - a small row: first move at the left, last move at the right, and between
+    them the move counter and, in guess mode, the "lost" badge;
+  - the settings, small: "every", "mode", and in guess mode "show analysis".
+  The buttons turn off double-tap zoom, so fast taps on a phone all count.
+- **Move quality:** a port of ogatak `draw_quality`. One bar per move fills
   its whole slot. Up means White gained, measured as the drop in Black's
   score lead during the move. Black's moves are grey and White's are white.
-  Axis labels are gold, and "white gains" / "black gains" name the two
-  halves.
-- **GAME STATUS:** a port of ogatak `draw_status`. It shows the score line,
+  "white gains" / "black gains" name the two halves.
+- **Game status:** a port of ogatak `draw_status`. It shows the score line,
   with White's lead filled white above zero and Black's grey below. A yellow
   marker, a dot, and "#move" show where you are.
+- Each chart's heading opens and closes it; each remembers its own state in
+  the browser (`replay.quality.open`, `replay.status.open`).
 - Both charts use ogatak-clear's current-line rules:
   - Only moves already reached are plotted, across at least 20 slots.
   - The y scale starts at log₂, matching the owner's config, and a header
@@ -227,13 +344,24 @@ top to bottom:
 - The ring marking the next move, which showed the future.
 - The big speed slider.
 
+**Removed on the owner's request (2026-09-29):** the "•••" result reveal;
+the words WHITE, BLACK and TO PLAY; real names; the captures inside the player
+boxes; and the game info between the boxes.
+
 **Type and colour:**
 
-- One monospace family everywhere, "DejaVu Sans Mono" first, which is what
-  Ogatak renders with on the PC.
+- One standard sans-serif family everywhere, the board's labels included: the
+  system UI font (`system-ui`, then Segoe UI, Roboto, Ubuntu, Noto Sans,
+  Arial). Decided 2026-09-29 (the owner: "use standard font everywhere varying
+  in size / prominence only"); it replaced Ogatak's "DejaVu Sans Mono".
+- Hierarchy comes only from size and weight. Labels ("move", "lost", "every")
+  are white at caption size; values are bold and larger. Gold is kept for
+  things that are not text: the turn ring, the countdown bar, and the play
+  button's border while playing. The charts' axis labels are white too.
 - Six sizes from ogatak `type_scale.js` at the owner's `info_font_size` 28 and
   zoom 0.62: hero 28, emph 22, body 17, ui 16, caption 14, fine 12 px, as
-  `fs-*` utilities.
+  `fs-*` utilities. Dropdowns use 16 px, below which iPhones zoom in on
+  focus.
 - Ogatak's grey secondary text is white here (standing rule: no grey text).
 - Board and stone images are drawn, not copied, because Ogatak's are AGPL.
 
@@ -245,14 +373,14 @@ top to bottom:
   bar shrank on 2026-09-29).
   At a 1024 px window that is a 513 px board and a panel wide enough for the
   charts.
-- On phones (below 1024 px) the page is one scrolling column: board, control
-  bar (so taps land in the same place), MOVE QUALITY, GAME STATUS, players,
-  and library actions.
+- On phones (below 1024 px) the page is one scrolling column: players,
+  board, controls (so taps land in the same place), Move quality, Game status,
+  game facts, and library actions.
 - The Next.js dev badge is off (`devIndicators: false`) because it covered
   text on phones.
 - Checked by Playwright screenshots at 1920×1080, 1024×728, and 390×844.
 
-## Guess mode (decided 2026-09-26)
+## Guess mode (decided 2026-09-26, revised 2026-09-29)
 
 The owner's words: "the main mode showing analysis is fine but i want another
 'i guess' mode where AFTER the move, it shows the value (loss) it had, and
@@ -265,31 +393,46 @@ a clean board, then sees how the real move compared.
 
 - **Before a move:** stones and the last-move dot only. Nothing on the board
   depends on the next move.
-- **When a move lands** (stepping forward, autoplay, or jumping forward with
-  End, ↑ or a chart click), the stone appears first. About 0.2 s later the
-  rating fades in:
+- **When a move lands**, the stone appears first and about 0.2 s later the
+  rating fades in. Since 2026-09-29 this happens whichever way the viewer got
+  there: stepping forward or back, autoplay, or any jump or chart click (the
+  owner: "when i hit 'back 1' i.e. left arrow, we shall act as if this was a
+  newly shown move"). Before, going back showed a clean board. Opening a game
+  at its saved move shows nothing. The rating is:
   - The mover's other options: the circles analysis mode showed for that
-    position (the engine's first move plus the 5 lowest-cost moves, the same
-    visit minimum, Delta + Visits), minus the point that was played.
+    position (the engine's first move plus the 5 lowest-cost moves, with the
+    same visit minimum), minus the point that was played. Each holds only its
+    Delta, to one decimal and in bold ("the analysis circles shall only say
+    the differential on that move"); visits are left out.
   - The played stone: a disc in its gradient colour carrying its Delta, laid
-    over the stone, which shows around it as a rim, like Ogatak's next-move
-    ring. A move worse than every alternative sets the far end of the colour
-    scale, so it never shares their colour (ogatak-clear rule 6).
+    over the stone. The disc's radius is 0.30 of a square (0.38 before
+    2026-09-29) against the stone's 0.48, so the stone shows around it as a
+    thick rim and the move just played is obvious. A move worse than every
+    alternative sets the far end of the colour scale, so it never shares
+    their colour (ogatak-clear rule 6).
   - Next to the move counter: "lost 2.30", with the value as a black-on-colour
-    badge in the move's gradient colour ("pass, lost …" for a pass). Board
+    badge in the move's gradient colour ("pass lost …" for a pass). Board
     labels are tiny on a phone (19 px squares), so this is the legible copy.
     Its space is kept while empty, so nothing shifts when it appears.
-- **How long:** "reveal [3 s]": 1, 2, 3, 5 or 8 s, or "hold" (until the next
-  move). The default 3 s is the owner's "momentarily". The time counts from
-  when the rating has fully faded in; it then fades out over 0.5 s.
-- **Tapping the board** shows the last move's rating again, or hides it early.
-- **Going back** (←, ↓, Home, or a chart click on an earlier move) shows no
-  rating, so the board is clean for guessing that position again; → brings
-  the move back with its rating. Opening a game at its saved move shows none.
-- **Autoplay:** "every N s" stays the time between moves. The rating takes the
-  start of each interval and the rest is guessing time: at the default 10 s
-  and 3 s, about 6 s of clean board. With "hold", or a reveal longer than the
-  interval, the next move replaces the rating.
+- **How long:** "show analysis [3 s]" (named "reveal" until 2026-09-29):
+  0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15 or 20 s, "until next move", or
+  "hold till accepted". The default 3 s is the owner's "momentarily". A timed
+  rating counts from when it has fully faded in, then fades out over 0.5 s.
+- **Hold till accepted** (the owner: "keep showing analysis until i tap to go
+  on to the guess stage; if this is active and i tap to hide the analysis of
+  the move just played, then we move forward to the (either autoplaying or
+  manual advancing) next move as usual"). The rating stays until the viewer
+  taps the board or presses Enter. While it shows, autoplay waits, with no
+  countdown bar, and the play button reads "pause · tap the board to go on".
+  The tap hides it and starts a full interval of guessing time before the
+  next move; without autoplay the viewer steps on as usual. Tapping while it
+  is hidden brings it back, and autoplay waits again.
+- **Tapping the board** (or Enter) shows the last move's rating again, or
+  hides it early, in every setting.
+- **Autoplay:** "every N s" stays the time between moves. With a timed rating,
+  the rating takes the start of each interval and the rest is guessing time:
+  at the default 10 s and 3 s, about 6 s of clean board. With "until next
+  move", or a rating longer than the interval, the next move replaces it.
 - Changing mode clears any rating; after switching to guess mode, nothing shows
   until the next move lands. The charts are unchanged: they end at the current
   move, so the move's quality bar appears as it lands.
@@ -314,6 +457,31 @@ directly with the options drawn around it.
 Guess mode is the base for the "think carefully" moments below: they would add
 a subtitle and a longer pause before selected moves, and after the move they
 show this same rating.
+
+## Real-time pacing (decided 2026-09-29)
+
+The owner: "can't we make it take something like the original games time
+intervals? don't we have those in the sgf? i.e. if the player took n seconds we
+shall also take n, or 2x n, etc as options in the every list."
+
+- "every" also offers **real ×0.5, ×1, ×1.5, ×2 and ×3**: each move waits as
+  long as its player took, times the factor, but at least 1 s so a quick reply
+  still shows. A move the record did not time uses the game's median.
+- The times come from the SGF: BL/WL, the time left after each move, with
+  OB/OW (periods or stones left in overtime), TM and OT, as KGS and CGoban
+  write them. Main time, Japanese byo-yomi, Canadian overtime and Fischer are
+  understood; the move that starts a new Canadian period cannot be timed.
+  `lib/sgf.ts` puts the result in each move's `seconds`. Real-time pacing
+  needs times for at least half of the moves.
+- **No game in the library has them yet (2026-09-29).** The 572 DGS games are
+  correspondence games whose SGFs carry no clock, and their moves take hours
+  or days anyway; the 9 seed games have none either. So the real choices show
+  disabled, under "as the players took (no clock in this record)".
+  - OGS keeps per-move times in its game API (`gamedata.moves[i][2]`, in
+    milliseconds) but not in its SGFs, and the OGS fetcher does not read
+    them yet.
+  - KGS SGFs have BL/WL, but KGS archive pages now ask for a login, so the
+    KGS fetcher needs one before it can bring any in.
 
 ## Review mode: "think carefully" moments (requested 2026-09-24, not yet built)
 
@@ -355,10 +523,10 @@ Computed from stored analysis in the app, so the thresholds can be tuned
 without re-analysing.
 
 The worker stores every candidate KataGo reports, which is the set Width is
-counted from. Visits high enough for stable costs — on the PC (RTX 3090 as of
-2026-09-25, TensorRT, b10c512 transformer net, ~1,410 visits/s) ~1,000–2,000
-visits per position is about 3–7 min per game. The RTX 5060 Ti that was in the
-PC that morning benchmarked at ~1,570 visits/s.
+counted from. Stable costs need deep searches; since 2026-09-29 every position
+gets at least 10,000 visits (see "Analysis depth"), about 15 min for a
+200-move game on the PC's RTX 3090. The RTX 5060 Ti that was in the PC on the
+morning of 2026-09-25 benchmarked at ~1,570 visits/s for one position.
 
 The whole flow must work on a phone in portrait orientation.
 
@@ -434,10 +602,14 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
 
 ## Open items
 
-- Public copy size: analysis averages about 0.6 MB per game (largest 1.2 MB),
-  and Fuseki's receiver takes at most 64 MiB per release, so roughly 100
-  analyzed games fit; beyond that the publisher must precompress the data files
-  (nginx `gzip_static`) or the receiver's limit must change.
+- Public copy size: at 10,000 visits a game's analysis is almost 3 times its
+  size at 1,000, because KataGo reports ~83 moves per position instead of ~30
+  (game 580: 0.99 MB against 0.36 MB). An average 180-move game will be about
+  1.5 MB. Fuseki's receiver takes at most 64 MiB per release, so roughly 40
+  analysed games fit. Beyond that the publisher must precompress the data files
+  (nginx `gzip_static`), the stored moves with too few visits ever to be shown
+  (under 1% of the position's) must be dropped, or the receiver's limit must
+  change.
 
 - Owner to supply usernames for Me/Carl/Adam/Gary on their servers, and the
   preferred game source to bulk-download from.

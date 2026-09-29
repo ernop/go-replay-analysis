@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { filterGames, gameHref, type LibraryData, type LibraryFilters } from "@/lib/library";
+import { filterGames, gameHref, handleOf, playedOn, type LibraryData, type LibraryFilters } from "@/lib/library";
 import { saveProgress, withViewerProgress } from "@/lib/progress";
 import { SITE_MODE } from "@/lib/site-mode";
 import type { GameStatus, GameSummary } from "@/lib/types";
@@ -30,16 +30,6 @@ const DEFAULT_FILTERS: LibraryFilters = {
   q: "",
   sort: "added",
 };
-
-/** DGS stores "start,end" and SGF allows "start..end"; the start date is what "Date played" sorts by. */
-function playedOn(g: GameSummary): string {
-  return g.datePlayed.split(/,|\.\./)[0] || "—";
-}
-
-/** DGS names players "Real Name (handle)"; the library shows the handle. */
-function handleOf(player: string): string {
-  return /\(([^()]+)\)\s*$/.exec(player)?.[1].trim() || player;
-}
 
 /**
  * One side of a game in fixed-width slots (name, rank, and for Black the

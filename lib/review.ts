@@ -117,11 +117,11 @@ export function rateMove(
   };
 }
 
-/** ogatak "Delta": this move's score minus the best move's, for the side to move. */
-export function deltaLabel(bestLead: number, lead: number, side: "B" | "W"): string {
+/** ogatak "Delta": this move's score minus the best move's, for the side to move; "0" when it rounds to nothing. */
+export function deltaLabel(bestLead: number, lead: number, side: "B" | "W", digits = 2): string {
   const val = side === "B" ? lead - bestLead : bestLead - lead;
-  const text = (val < 0 ? "-" : "+") + Math.abs(val).toFixed(2);
-  return text === "+0.00" || text === "-0.00" ? "0" : text;
+  const size = Math.abs(val).toFixed(digits);
+  return Number(size) === 0 ? "0" : (val < 0 ? "-" : "+") + size;
 }
 
 /** ogatak "Visits". */
@@ -131,9 +131,10 @@ export function visitsLabel(visits: number): string {
   return String(visits);
 }
 
-// ogatak-clear "green_red" palette. Its middle stops are pushed off the wood
-// colour so a candidate never disappears into the board.
-const GREEN_RED = ["#12b86a", "#6fbf44", "#d2c247", "#d47b42", "#b14c46"].map((hex) => [
+// Best to worst: green through yellow and light orange to a soft red, with no
+// brown on the way. Every stop is light enough to stand off the wood and to
+// carry black text.
+const GREEN_RED = ["#1fc46a", "#8fd957", "#ecea6a", "#fbb870", "#f47c7c"].map((hex) => [
   parseInt(hex.slice(1, 3), 16),
   parseInt(hex.slice(3, 5), 16),
   parseInt(hex.slice(5, 7), 16),

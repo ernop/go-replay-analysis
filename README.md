@@ -26,13 +26,16 @@ Open http://localhost:4517. The library is pre-seeded with nine classic games
    web server):
 
 ```bash
-npm run analyze -- --katago /path/to/katago --model /path/to/model.bin.gz --visits 400
+npm run analyze -- --katago /path/to/katago --model /path/to/model.bin.gz
 # add --server http://<server>:4517 if the web app runs elsewhere
 ```
 
 The worker drains the queue, posting per-move winrate / score lead / top moves back
 to the server as it goes — you can already watch partial results while it runs.
-It uses `scripts/katago-analysis.cfg` (winrates reported from Black's perspective).
+Every position gets 10,000 visits (`--visits` to change). When the queue is empty
+the worker re-analyses, in place, any game analysed with fewer visits; `--no-deepen`
+turns that off. It uses `scripts/katago-analysis.cfg` (winrates reported from
+Black's perspective; 4 positions searched at once).
 
 No KataGo handy? Demo the UI with fake data:
 

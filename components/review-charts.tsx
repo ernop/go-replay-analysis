@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useStoredString } from "@/lib/use-stored";
 
 // Port of ogatak-clear's MOVE QUALITY and GAME STATUS charts (move_report.js:
@@ -10,6 +11,7 @@ import { useStoredString } from "@/lib/use-stored";
 type YScale = "linear" | "log2";
 
 interface ChartView {
+  open: boolean;
   yscale: YScale;
   windowed: boolean;
   windowN: number;
@@ -31,7 +33,7 @@ const PAD = {
   bottom: Math.round(CAPTION_PX * 1.8),
 };
 const CHART_MIN_DEPTH = 20;
-const GOLD = "#e0b872";
+const LABEL = "#ffffff";
 const MARKER = "#ffff99";
 
 interface ChartsProps {
@@ -49,7 +51,7 @@ export function ReviewCharts({ scoreLead, movers, current, onSeek }: ChartsProps
   const [statusView, setStatusView] = useChartView("status");
   return (
     <>
-      <ChartCard title="MOVE QUALITY" view={qualityView} onView={setQualityView}>
+      <ChartCard title="Move quality" view={qualityView} onView={setQualityView}>
         <ChartCanvas
           draw={(ctx, w, h, font) => drawQuality(ctx, w, h, font, scoreLead, movers, current, qualityView)}
           pick={(map, x) => clamp(Math.ceil(map.domainStart + (x - map.x0) / map.slotW), map.start, map.end)}
@@ -62,7 +64,7 @@ export function ReviewCharts({ scoreLead, movers, current, onSeek }: ChartsProps
           onSeek={onSeek}
         />
       </ChartCard>
-      <ChartCard title="GAME STATUS" view={statusView} onView={setStatusView}>
+      <ChartCard title="Game status" view={statusView} onView={setStatusView}>
         <ChartCanvas
           draw={(ctx, w, h, font) => drawStatus(ctx, w, h, font, scoreLead, current, statusView)}
           pick={(map, x) => clamp(Math.round(map.domainStart + (x - map.x0) / map.slotW), map.domainStart, map.end)}
@@ -79,16 +81,19 @@ export function ReviewCharts({ scoreLead, movers, current, onSeek }: ChartsProps
 }
 
 function useChartView(id: "quality" | "status"): [ChartView, (patch: Partial<ChartView>) => void] {
+  const [open, setOpen] = useStoredString(`replay.${id}.open`, "1");
   const [yscale, setYscale] = useStoredString(`replay.${id}.yscale`, "log2");
   const [windowed, setWindowed] = useStoredString(`replay.${id}.windowed`, "0");
   const [windowN, setWindowN] = useStoredString(`replay.${id}.window_n`, "40");
   const n = parseInt(windowN, 10);
   const view: ChartView = {
+    open: open !== "0",
     yscale: yscale === "linear" ? "linear" : "log2",
     windowed: windowed === "1",
     windowN: Number.isInteger(n) && n >= 1 && n <= 1000 ? n : 40,
   };
   const update = (patch: Partial<ChartView>) => {
+    if (patch.open !== undefined) setOpen(patch.open ? "1" : "0");
     if (patch.yscale) setYscale(patch.yscale);
     if (patch.windowed !== undefined) setWindowed(patch.windowed ? "1" : "0");
     if (patch.windowN !== undefined) setWindowN(String(patch.windowN));
@@ -107,44 +112,58 @@ function ChartCard({
   onView: (patch: Partial<ChartView>) => void;
   children: ReactNode;
 }) {
+  const Chevron = view.open ? ChevronDown : ChevronRight;
   return (
     <section className="min-w-0">
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3">
-        <h2 className="fs-ui whitespace-nowrap tracking-[2px] text-gold">{title}</h2>
-        <div className="fs-ui flex items-center whitespace-nowrap">
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <h2 className="fs-body font-bold">
           <button
             type="button"
-            className="ctl"
-            title="Toggle linear / log2 y scale"
-            onClick={() => onView({ yscale: view.yscale === "log2" ? "linear" : "log2" })}
+            className="ctl -ml-2 flex items-center gap-1 whitespace-nowrap py-1 pl-1"
+            aria-expanded={view.open}
+            title={view.open ? `Hide ${title.toLowerCase()}` : `Show ${title.toLowerCase()}`}
+            onClick={() => onView({ open: !view.open })}
           >
-            {view.yscale === "log2" ? "log₂" : "lin"}
+            <Chevron size={20} />
+            {title}
           </button>
-          <button
-            type="button"
-            className="ctl"
-            title="Toggle full history / sliding window"
-            onClick={() => onView({ windowed: !view.windowed })}
-          >
-            {view.windowed ? "window" : "full"}
-          </button>
-          <label className="flex items-center gap-1 px-2" title="Moves shown when the sliding window is on">
-            last
-            <input
-              type="number"
-              min={1}
-              max={1000}
-              value={view.windowN}
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10);
-                if (Number.isInteger(n) && n >= 1 && n <= 1000) onView({ windowN: n });
-              }}
-              className="field w-[4.5em]"
-            />
-          </label>
-        </div>
+        </h2>
+        {view.open && (
+          <div className="fs-caption flex items-center whitespace-nowrap">
+            <button
+              type="button"
+              className="ctl"
+              title="Toggle linear / log2 y scale"
+              onClick={() => onView({ yscale: view.yscale === "log2" ? "linear" : "log2" })}
+            >
+              {view.yscale === "log2" ? "log₂" : "lin"}
+            </button>
+            <button
+              type="button"
+              className="ctl"
+              title="Toggle full history / sliding window"
+              onClick={() => onView({ windowed: !view.windowed })}
+            >
+              {view.windowed ? "window" : "full"}
+            </button>
+            <label className="flex items-center gap-1 px-2" title="Moves shown when the sliding window is on">
+              last
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={view.windowN}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  if (Number.isInteger(n) && n >= 1 && n <= 1000) onView({ windowN: n });
+                }}
+                className="field fs-ui w-[4.5em]"
+              />
+            </label>
+          </div>
+        )}
       </div>
-      {children}
+      {view.open && <div className="mt-1">{children}</div>}
     </section>
   );
 }
@@ -291,7 +310,7 @@ function horizontalGrid(
       const side = y < yOf(0) ? "up" : "down";
       if (sv !== 0 && Math.abs(y - lastLabelY[side]) < CAPTION_PX + 1) continue;
       lastLabelY[side] = y;
-      ctx.fillStyle = GOLD;
+      ctx.fillStyle = LABEL;
       ctx.fillText(label(sv), x0 - 5, y);
     }
   }
@@ -347,7 +366,7 @@ function drawQuality(
     ctx.fillRect(left, Math.min(yZero, yv), right - left, Math.max(1, Math.abs(yv - yZero)));
   }
 
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = LABEL;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   const step = Math.max(1, Math.ceil((ctx.measureText(String(end)).width + 4) / xs.slotW));
@@ -408,7 +427,7 @@ function drawStatus(
     ctx.moveTo(x, y0);
     ctx.lineTo(x, y1);
     ctx.stroke();
-    ctx.fillStyle = GOLD;
+    ctx.fillStyle = LABEL;
     ctx.fillText(String(d), x, y1 + 5);
   }
 
@@ -443,7 +462,7 @@ function drawStatus(
 
   // Ogatak puts these at the right, where they collide with the "#move" label
   // once the current move reaches the right edge.
-  ctx.fillStyle = GOLD;
+  ctx.fillStyle = LABEL;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText("W ahead", x0 + 6, y0 + 8);
