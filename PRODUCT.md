@@ -235,7 +235,13 @@ or not". On 2026-09-30 the red last-move dot went: "I don't like red,
 basically", and in its place "a light blue triangle. ... You draw the line
 from the upper right to the lower left corner ... Everything to the lower
 and to the right of that line. Totally blue. Right to the edge. ... So we
-definitely don't want to use that red dot."
+definitely don't want to use that red dot." Later that day the options'
+badges became "subtly circular", each with "a semi-transparent background,
+a couple of pixels thick on each one, of the color of the move that would
+have virtually been played there if the user had chosen it": "when we're
+evaluating Black's last move, the actual move will be the move ... with its
+special type of indicator, and then the candidate moves will be this new
+thing".
 
 What these say about what the owner wants, and so how to decide future
 questions:
@@ -263,8 +269,10 @@ questions:
   marked in light blue, a colour nothing else on the board uses.
 - **One mark per move, on the move.** Each rated move shows its colour once,
   in the badge that holds its number. An option's badge is centred on its own
-  point, so its place alone says which point it marks; the played move's
-  sits at a corner of its stone, which cannot be mistaken. A mark that
+  point, so its place alone says which point it marks, and is round with a
+  rim in the mover's colour, like the stone that could have gone there; the
+  played move's is a rectangle at a corner of its stone, which cannot be
+  mistaken. A mark that
   wanders to wherever there is room, or a second patch of the same colour,
   reads as clutter.
 - **Readable at a glance on a phone, before tidy.** A number on the board
@@ -298,6 +306,8 @@ or with the last-move button; there is no reveal button.
   lower-left, filled to the square's edges and drawn over the stone. It
   shows in every mode. It replaced Ogatak's red dot on 2026-09-30, because
   the owner does not like red there, and red already means a bad move.
+  Guess mode pushes its option badges off it, as far as their placement
+  allows (see "Guess mode").
 - Candidates use Ogatak's count mode: the engine's first move plus the 5
   lowest-cost other moves. Ties keep engine order and passes are skipped.
   The owner asked for "the top move plus say 5" on 2026-09-25; Ogatak's
@@ -445,8 +455,15 @@ a clean board, then sees how the real move compared.
   - The mover's other options: the moves analysis mode showed for that
     position (the engine's first move plus the 5 lowest-cost moves, with the
     same visit minimum), minus the point that was played. Each is one
-    rounded badge in its gradient colour, centred on the point's line
-    crossing, holding the points it loses against the best move: bold black
+    subtly round badge in its gradient colour, centred on the point's line
+    crossing. Its shape is a superellipse of exponent 2.5, between an
+    ellipse and a rounded square: a lone "0" is nearly a circle, and a
+    longer number a fat oval. It is just big enough to keep the text's ink
+    5% of the font size inside its 1 px edge. Round it runs a translucent
+    rim, 0.12 of the font size and never under 2 px, in the colour of the
+    stone the mover would have played there: 50% black for Black's
+    options, 70% white for White's. The badge holds the points it loses
+    against the best move: bold black
     text, one decimal, whole points from 10 up ("12"), "0" for the best.
     There is no other mark on the point. The number is unsigned, like the
     "lost" readout, because every option is at or below the best; the colour
@@ -472,17 +489,25 @@ a clean board, then sees how the real move compared.
     like the other settings. Changing any of them shows the current move's
     rating, and keeps it up while the setting changes, so the effect is in
     view.
-  - Placement: an option's badge is centred on its crossing, with odd pixel
-    sizes so it centres exactly on the 1 px lines. Where two options'
-    badges would overlap, or one to the right of or below the played stone
-    would reach into its square and the triangle there, they are pushed
-    apart along the line between their points, by at most
-    30% of the badge's width or height, so each still covers its own
-    crossing; the board's edge holds them in. Any overlap left (at large
-    sizes on a phone) is drawn with the option that loses least on top. The
-    played stone cannot be mistaken, so its badge alone may take another
-    corner of the stone, when the lower right would hide options' badges or
-    points; it is drawn above them all.
+  - Placement: an option's badge is centred on the middle of its crossing's
+    1 px lines. Where two options' badges would overlap, they are pushed
+    apart along the line between their points. One that would touch the
+    last-move triangle is pushed back off it. That test is against the
+    triangle itself, not the stone's whole square, so a neighbour to the
+    left or above may reach into the square's empty upper-left half.
+    Neither push is more than 30% of the badge's width or height, so each
+    still covers its own crossing, and the board's edge holds them in,
+    rims included. The rims are translucent, so they are drawn as one layer
+    under every badge. They take no room in this placing and never cover a
+    number, and where they meet they merge into one halo. Any overlap left is drawn
+    with the option that loses least on top. At the default size a phone's
+    badges keep every number whole even three in a row beside the played
+    stone (game 404 move 119), overlapping only at their margins. With two
+    lines (visits shown), or at large sizes, numbers there can still be
+    clipped, because a round badge holding two lines is about 28 × 30 px on
+    a 19 px square. The played stone cannot be mistaken, so its badge alone may
+    take another corner of the stone, when the lower right would hide
+    options' badges or points; it is drawn above them all.
   - How it got here: until 2026-09-29 these were stone-sized circles like
     analysis mode's. That morning the played stone got a smaller disc ("so
     it's more obvious which move was just played!"), then every option did,
@@ -495,7 +520,9 @@ a clean board, then sees how the real move compared.
     badge hanging from each point to the lower right. The owner kept that
     for the played move and asked for the options' badges to be "directly
     centered over the played spot (the line intersection)", with the two
-    size sliders and the visits setting.
+    size sliders and the visits setting. On 2026-09-30 those rounded
+    rectangles became the round, rimmed badges above ("the candidate moves
+    will be this new thing"), while the played move's stayed as it was.
   - Next to the move counter: "lost 2.30", with the value as a black-on-colour
     badge in the move's gradient colour ("pass lost …" for a pass). A pass
     has no stone to carry a badge, so there it is the only copy. Its space

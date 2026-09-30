@@ -32,6 +32,8 @@ interface GobanProps {
   /** Badge sizes as multiples of the default: the candidates', and the played move's. */
   markScale?: number;
   playedScale?: number;
+  /** Whose options the badges show: each gets a translucent rim in that stone's colour. */
+  markSide?: "B" | "W";
   /** A new key starts a fresh marks layer, restarting any animation in `marksClassName`. */
   marksKey?: string | number;
   marksClassName?: string;
@@ -66,6 +68,17 @@ const VISITS_FONT = 0.8;
 const BADGE_NUDGE = 0.3;
 const BADGE_EDGE = "rgba(0, 0, 0, 0.6)";
 const PLAYED_EDGE = "rgba(0, 0, 0, 0.9)";
+/**
+ * A candidate's badge is a superellipse of exponent BADGE_SHAPE (2 would be
+ * an ellipse; larger is squarer), just big enough to keep its text INK_GAP of
+ * the font size inside its edge. Round it runs a rim RIM_WIDTH of the font
+ * size wide, never under 2px, in the colour of the stone that would have been
+ * played there.
+ */
+const BADGE_SHAPE = 2.5;
+const INK_GAP = 0.05;
+const RIM_WIDTH = 0.12;
+const RIM = { B: "rgba(0, 0, 0, 0.5)", W: "rgba(255, 255, 255, 0.7)" };
 
 interface Rect {
   x: number;
@@ -85,6 +98,21 @@ function coversCircle(r: Rect, cx: number, cy: number, radius: number): boolean 
   const nx = Math.max(r.x, Math.min(cx, r.x + r.w));
   const ny = Math.max(r.y, Math.min(cy, r.y + r.h));
   return (nx - cx) ** 2 + (ny - cy) ** 2 < radius ** 2;
+}
+
+/** Adds the superellipse |x/rx|^n + |y/ry|^n = 1 round (cx, cy) to the current path. */
+function superellipse(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, n: number) {
+  const steps = 72;
+  for (let i = 0; i < steps; i++) {
+    const t = (i / steps) * 2 * Math.PI;
+    const c = Math.cos(t);
+    const s = Math.sin(t);
+    const x = cx + rx * Math.sign(c) * Math.abs(c) ** (2 / n);
+    const y = cy + ry * Math.sign(s) * Math.abs(s) ** (2 / n);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
 }
 
 function hoshiPoints(size: number): [number, number][] {
@@ -133,6 +161,7 @@ export function Goban({
   badges = false,
   markScale = 1,
   playedScale = 1,
+  markSide,
   marksKey,
   marksClassName,
   onBoardClick,
@@ -258,45 +287,84 @@ export function Goban({
       const playedStone = played && !onEmpty(played) ? played : null;
       // The pixel row or column a point's gridline covers (see `line` above).
       const gridPixel = (v: number) => Math.floor(centre(v) + (square % 2 === 0 ? 0.5 : 0));
-      const odd = (n: number) => (n % 2 === 0 ? n + 1 : n);
 
-      // The first line is bold; the visits line, when shown, sits below it,
-      // smaller. Odd sizes let a badge centre exactly on a 1px gridline.
+      // A badge's text: the first line bold and, when shown, the visits line
+      // below it, smaller. `measure` gives the widest line, the height the
+      // lines take, and each line's centre as an offset from their middle.
+      const texts = (lines: string[]) => [lines[0] ?? "", ...lines.slice(1, 2)];
+      const lineFont = (i: number, font: number, sub: number) => (i === 0 ? `bold ${font}px ${family}` : `${sub}px ${family}`);
       const measure = (lines: string[], font: number) => {
         const sub = Math.max(6, Math.round(font * VISITS_FONT));
-        ctx.font = `bold ${font}px ${family}`;
-        let text = ctx.measureText(lines[0] ?? "").width;
-        let h = font * 1.25;
-        if (lines.length > 1) {
-          ctx.font = `${sub}px ${family}`;
-          text = Math.max(text, ctx.measureText(lines[1]).width);
-          h = font * 1.125 + sub * 1.15;
-        }
-        const w = Math.max(Math.round(font * 1.25), Math.ceil(text + font * 0.5));
-        return { w: odd(w), h: odd(Math.round(h)), r: Math.round(font * 0.375), sub };
+        const width = Math.max(
+          ...texts(lines).map((text, i) => {
+            ctx.font = lineFont(i, font, sub);
+            return ctx.measureText(text).width;
+          }),
+        );
+        const two = lines.length > 1;
+        const h = two ? font * 1.125 + sub * 1.15 : font * 1.25;
+        const offsets = two ? [font * 0.625 - h / 2, font * 1.125 + sub * 0.5 - h / 2] : [0];
+        return { width, h, sub, offsets };
       };
-      type Badge = Rect & { radii: number[]; fill: string; lines: string[]; font: number; sub: number; edge: string; line: number };
+      // Where a line's ink falls: `dy` moves its middle onto the line's
+      // centre, and `x` and `y` are its half-width and half-height.
+      const ink = (text: string, font: string) => {
+        ctx.font = font;
+        const m = ctx.measureText(text);
+        return {
+          dy: (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2,
+          x: Math.max(m.actualBoundingBoxLeft, m.actualBoundingBoxRight),
+          y: (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent) / 2,
+        };
+      };
+      const writeLines = (lines: string[], cx: number, cy: number, font: number, sub: number, offsets: number[]) => {
+        ctx.fillStyle = "#000000";
+        texts(lines).forEach((text, i) => {
+          ctx.fillText(text, cx, cy + offsets[i] + ink(text, lineFont(i, font, sub)).dy);
+        });
+      };
+
+      // A candidate's badge is a superellipse shaped like the played badge's
+      // rectangle, scaled up until every line's ink stays INK_GAP inside its
+      // 1px edge (a and b are the semi-axes inside that edge). The rim is
+      // translucent, so it goes under every badge and takes no room.
+      const rim = markSide ? Math.max(2, Math.round(markFont * RIM_WIDTH)) : 0;
+      const gap = INK_GAP * markFont;
+      const optionShape = (lines: string[]) => {
+        const t = measure(lines, markFont);
+        const a = Math.max(markFont * 1.25, t.width + markFont * 0.5) / 2 - 1;
+        const b = t.h / 2 - 1;
+        let reach = 0;
+        texts(lines).forEach((text, i) => {
+          const k = ink(text, lineFont(i, markFont, t.sub));
+          const x = k.x + gap;
+          const y = Math.abs(t.offsets[i]) + k.y + gap;
+          reach = Math.max(reach, (x / a) ** BADGE_SHAPE + (y / b) ** BADGE_SHAPE);
+        });
+        const grow = Math.max(1, reach ** (1 / BADGE_SHAPE));
+        return { w: 2 * (a * grow + 1), h: 2 * (b * grow + 1), sub: t.sub, offsets: t.offsets };
+      };
 
       // A candidate's badge is centred on its point. Badges that would
       // overlap each other are pushed apart along the line between their
-      // points, and those right of or below the played stone are pushed off
-      // its square, which holds the last-move mark; never by more than
-      // BADGE_NUDGE of their size, so each still sits on its own point. The
-      // board's edge holds them in.
+      // points, and any reaching into the last-move mark are pushed back off
+      // it; never by more than BADGE_NUDGE of their size, so each still sits
+      // on its own point. The board's edge holds them in, rims and all.
       const cands = shown.map((m) => {
-        const { w, h, r, sub } = measure(m.lines, markFont);
-        const homeX = gridPixel(m.vertex[0]) - (w - 1) / 2;
-        const homeY = gridPixel(m.vertex[1]) - (h - 1) / 2;
-        return { m, w, h, r, sub, homeX, homeY, x: homeX, y: homeY };
+        const { w, h, sub, offsets } = optionShape(m.lines);
+        // Centred on the middle of the point's gridline pixels.
+        const homeX = gridPixel(m.vertex[0]) + 0.5 - w / 2;
+        const homeY = gridPixel(m.vertex[1]) + 0.5 - h / 2;
+        return { m, w, h, sub, offsets, homeX, homeY, x: homeX, y: homeY };
       });
       type Cand = (typeof cands)[number];
       const place = (c: Cand, x: number, y: number) => {
         const dx = BADGE_NUDGE * c.w;
         const dy = BADGE_NUDGE * c.h;
-        c.x = Math.max(0, Math.min(px - c.w, Math.max(c.homeX - dx, Math.min(c.homeX + dx, x))));
-        c.y = Math.max(0, Math.min(px - c.h, Math.max(c.homeY - dy, Math.min(c.homeY + dy, y))));
+        c.x = Math.max(rim, Math.min(px - rim - c.w, Math.max(c.homeX - dx, Math.min(c.homeX + dx, x))));
+        c.y = Math.max(rim, Math.min(px - rim - c.h, Math.max(c.homeY - dy, Math.min(c.homeY + dy, y))));
       };
-      // Moves `c` away from `other` along one axis, the two sharing the move; with no `other`, off the played stone's square, which stays.
+      // Moves `c` away from `other` along one axis, the two sharing the move; with no `other`, off the last-move mark, which stays.
       const separate = (c: Cand, other: Cand | null, towardX: number, towardY: number, ox: number, oy: number) => {
         const share = other ? 0.5 : 1;
         if (towardY === 0 || (towardX !== 0 && ox <= oy)) {
@@ -308,11 +376,21 @@ export function Goban({
         }
       };
       cands.forEach((c) => place(c, c.x, c.y));
+      // The last-move mark is the half of the played stone's square below its
+      // diagonal from upper right to lower left. `pastMark` is how far a badge
+      // reaches across that diagonal: its centre's distance along (1, 1) plus
+      // the superellipse's extent that way.
       const markSquare = playedStone && {
         x: playedStone.vertex[0] * square,
         y: playedStone.vertex[1] * square,
         w: square,
         h: square,
+      };
+      const dual = BADGE_SHAPE / (BADGE_SHAPE - 1);
+      const pastMark = (c: Cand, s: Rect) => {
+        const rx = c.w / 2;
+        const ry = c.h / 2;
+        return c.x + rx - s.x + (c.y + ry - s.y) + (rx ** dual + ry ** dual) ** (1 / dual) - s.w;
       };
       const overlap = (a: Rect, b: Rect) => [
         Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) - 1,
@@ -331,35 +409,48 @@ export function Goban({
             }
           }
           if (markSquare && playedStone) {
-            const sx = Math.sign(a.m.vertex[0] - playedStone.vertex[0]);
-            const sy = Math.sign(a.m.vertex[1] - playedStone.vertex[1]);
             const [ox, oy] = overlap(a, markSquare);
-            if (sx >= 0 && sy >= 0 && ox > 0 && oy > 0) separate(a, null, -sx, -sy, ox, oy);
+            const past = pastMark(a, markSquare);
+            if (ox > 0 && oy > 0 && past > 0) {
+              const sx = Math.sign(a.m.vertex[0] - playedStone.vertex[0]);
+              const sy = Math.sign(a.m.vertex[1] - playedStone.vertex[1]);
+              // Moving left or up also clears the diagonal, often before the square.
+              separate(a, null, -sx, -sy, sx < 0 ? Math.min(ox, past) : ox, sy < 0 ? Math.min(oy, past) : oy);
+            }
           }
         }
         if (positions() === before) break;
       }
+      if (markSide) {
+        // One fill, so overlapping rims don't darken twice.
+        ctx.beginPath();
+        for (const c of cands) superellipse(ctx, c.x + c.w / 2, c.y + c.h / 2, c.w / 2 + rim, c.h / 2 + rim, BADGE_SHAPE);
+        ctx.fillStyle = RIM[markSide];
+        ctx.fill();
+      }
       // Drawn last mark first, so where badges still overlap the first mark's is on top.
-      const badgeList: Badge[] = [...cands].reverse().map((c) => ({
-        x: Math.round(c.x),
-        y: Math.round(c.y),
-        w: c.w,
-        h: c.h,
-        radii: [c.r, c.r, c.r, c.r],
-        fill: c.m.fill,
-        lines: c.m.lines,
-        font: markFont,
-        sub: c.sub,
-        edge: BADGE_EDGE,
-        line: 1,
-      }));
+      for (const c of [...cands].reverse()) {
+        const cx = c.x + c.w / 2;
+        const cy = c.y + c.h / 2;
+        ctx.beginPath();
+        superellipse(ctx, cx, cy, c.w / 2 - 0.5, c.h / 2 - 0.5, BADGE_SHAPE);
+        ctx.fillStyle = c.m.fill;
+        ctx.fill();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = BADGE_EDGE;
+        ctx.stroke();
+        writeLines(c.m.lines, cx, cy, markFont, c.sub, c.offsets);
+      }
 
       // The played stone is unmistakable, so its badge may take whichever
       // corner of the stone hides least of the candidates' badges and points.
       // It is drawn last, above them.
       if (playedStone) {
         const font = Math.max(6, Math.round(base * PLAYED_SCALE * playedScale));
-        const { w, h, r, sub } = measure(playedStone.lines, font);
+        const { width, h: textH, sub, offsets } = measure(playedStone.lines, font);
+        const w = Math.max(Math.round(font * 1.25), Math.ceil(width + font * 0.5));
+        const h = Math.round(textH);
+        const r = Math.round(font * 0.375);
         const d = Math.round(PLAYED_INSET * square);
         const gx = gridPixel(playedStone.vertex[0]);
         const gy = gridPixel(playedStone.vertex[1]);
@@ -373,7 +464,7 @@ export function Goban({
         let least = Infinity;
         for (const c of corners) {
           let cost = 0;
-          for (const b of badgeList) cost += overlapArea(c, b) / (h * h);
+          for (const o of cands) cost += overlapArea(c, o) / (h * h);
           for (const m of shown) {
             if (coversCircle(c, centre(m.vertex[0]), centre(m.vertex[1]), 0.12 * square)) cost += 1;
           }
@@ -383,29 +474,14 @@ export function Goban({
           }
         }
         if (best) {
-          badgeList.push({ ...best, fill: playedStone.fill, lines: playedStone.lines, font, sub, edge: PLAYED_EDGE, line: 2 });
-        }
-      }
-
-      // "middle" sets digits a little high, by an amount that grows with the font.
-      const lift = (font: number) => Math.max(1, Math.round(font * 0.05));
-      for (const b of badgeList) {
-        ctx.beginPath();
-        ctx.roundRect(b.x + b.line / 2, b.y + b.line / 2, b.w - b.line, b.h - b.line, b.radii);
-        ctx.fillStyle = b.fill;
-        ctx.fill();
-        ctx.lineWidth = b.line;
-        ctx.strokeStyle = b.edge;
-        ctx.stroke();
-        ctx.fillStyle = "#000000";
-        ctx.font = `bold ${b.font}px ${family}`;
-        const mid = b.x + b.w / 2;
-        if (b.lines.length > 1) {
-          ctx.fillText(b.lines[0], mid, b.y + b.font * 0.625 + lift(b.font));
-          ctx.font = `${b.sub}px ${family}`;
-          ctx.fillText(b.lines[1], mid, b.y + b.font * 1.125 + b.sub * 0.5 + lift(b.sub));
-        } else {
-          ctx.fillText(b.lines[0] ?? "", mid, b.y + b.h / 2 + lift(b.font));
+          ctx.beginPath();
+          ctx.roundRect(best.x + 1, best.y + 1, w - 2, h - 2, best.radii);
+          ctx.fillStyle = playedStone.fill;
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = PLAYED_EDGE;
+          ctx.stroke();
+          writeLines(playedStone.lines, best.x + w / 2, best.y + h / 2, font, sub, offsets);
         }
       }
     };
@@ -414,7 +490,7 @@ export function Goban({
     const observer = new ResizeObserver(draw);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [size, signMap, marks, played, badges, markScale, playedScale, marksKey]);
+  }, [size, signMap, marks, played, badges, markScale, playedScale, markSide, marksKey]);
 
   // Fills a positioned parent, which must have its own size.
   return (

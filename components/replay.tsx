@@ -488,6 +488,7 @@ export function Replay({ id }: { id: number }) {
           badges={mode === "guess"}
           markScale={markSize / 100}
           playedScale={playedSize / 100}
+          markSide={mode === "guess" ? lastPlayed?.color : undefined}
           marksKey={mode === "guess" ? `reveal-${reveal?.serial ?? 0}` : mode}
           marksClassName={mode === "guess" ? revealClass : undefined}
           onBoardClick={mode === "guess" ? toggleReveal : undefined}
