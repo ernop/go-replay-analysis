@@ -231,7 +231,11 @@ nonplayed ones, use this rounded rectangle but put it directly centered over
 the played spot (the line intersection)", with "a slider for how big the
 played move's indicator is, and another slider for all the other
 indicators", and a setting to "ALSO show 'total visits' for each shown one,
-or not".
+or not". On 2026-09-30 the red last-move dot went: "I don't like red,
+basically", and in its place "a light blue triangle. ... You draw the line
+from the upper right to the lower left corner ... Everything to the lower
+and to the right of that line. Totally blue. Right to the edge. ... So we
+definitely don't want to use that red dot."
 
 What these say about what the owner wants, and so how to decide future
 questions:
@@ -255,8 +259,8 @@ questions:
 - **Numbers must be trustworthy, and few.** An option backed by 40 visits is
   noise. On the board, guess mode says only how much worse each option was.
 - **A calm colour language.** Good is green, bad a soft red, and nothing in
-  between looks muddy. The move just played stays a plain stone with its red
-  last-move dot.
+  between looks muddy. Red is for bad moves only: the move just played is
+  marked in light blue, a colour nothing else on the board uses.
 - **One mark per move, on the move.** Each rated move shows its colour once,
   in the badge that holds its number. An option's badge is centred on its own
   point, so its place alone says which point it marks; the played move's
@@ -288,8 +292,12 @@ or with the last-move button; there is no reveal button.
 
 **Board** (ogatak `board_drawer.js` with the owner's config):
 
-- No coordinates. Wood `#d0ad75`, 1 px black grid, 3 px star points. The last
-  move gets a red dot (`#ff6666`).
+- No coordinates. Wood `#d0ad75`, 1 px black grid, 3 px star points.
+- The last move is marked by a light blue (`#5cb8ff`) triangle: the lower-right
+  half of its square, cut from the square's upper-right corner to its
+  lower-left, filled to the square's edges and drawn over the stone. It
+  shows in every mode. It replaced Ogatak's red dot on 2026-09-30, because
+  the owner does not like red there, and red already means a bad move.
 - Candidates use Ogatak's count mode: the engine's first move plus the 5
   lowest-cost other moves. Ties keep engine order and passes are skipped.
   The owner asked for "the top move plus say 5" on 2026-09-25; Ogatak's
@@ -426,7 +434,7 @@ Guess mode is analysis mode's candidates shown after the move instead of
 before it, plus a rating of the move that was played. The viewer guesses each move on
 a clean board, then sees how the real move compared.
 
-- **Before a move:** stones and the last-move dot only. Nothing on the board
+- **Before a move:** stones and the last-move triangle only. Nothing on the board
   depends on the next move.
 - **When a move lands**, the stone appears first and about 0.2 s later the
   rating fades in. Since 2026-09-29 this happens whichever way the viewer got
@@ -448,9 +456,10 @@ a clean board, then sees how the real move compared.
     the played move's included, as a second line under the points, not bold,
     at 0.8 of their size: an option's own visits, and for the played move
     the visits of the search its value came from (see "Values").
-  - The played stone keeps its red last-move dot, never covered, and gets
-    a badge at its lower right, 1.15 times larger with a heavier edge, so it
-    is the first number the eye finds. A move worse than every alternative
+  - The played stone keeps its last-move triangle and gets a badge at its
+    lower right, 1.15 times larger with a heavier edge, so it is the first
+    number the eye finds. The badge covers the triangle's middle, but the
+    triangle's diagonal edge and its ends still show round it. A move worse than every alternative
     sets the far end of the colour scale, so it never shares their colour
     (ogatak-clear rule 6).
   - Badge size: by default the text is 0.4 of a square tall, never under
@@ -465,8 +474,9 @@ a clean board, then sees how the real move compared.
     view.
   - Placement: an option's badge is centred on its crossing, with odd pixel
     sizes so it centres exactly on the 1 px lines. Where two options'
-    badges would overlap, or one would cover the played stone's red dot,
-    they are pushed apart along the line between their points, by at most
+    badges would overlap, or one to the right of or below the played stone
+    would reach into its square and the triangle there, they are pushed
+    apart along the line between their points, by at most
     30% of the badge's width or height, so each still covers its own
     crossing; the board's edge holds them in. Any overlap left (at large
     sizes on a phone) is drawn with the option that loses least on top. The

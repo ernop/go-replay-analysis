@@ -42,21 +42,20 @@ interface GobanProps {
 
 // Matches ogatak-clear's board (board_drawer.js, gridlines.js and the owner's
 // config): wood #d0ad75, 1px black grid, 3px star points, no coordinates,
-// candidate circles the size of a stone with black text in the page's font,
-// and a red dot on the last move. Guess mode's badges are this app's.
+// candidate circles the size of a stone with black text in the page's font.
+// The last-move mark and guess mode's badges are this app's.
 const WOOD = "#d0ad75";
 const GRID = "#000000";
-const LAST_MOVE = "#ff6666";
+/** The last move's mark fills the lower-right half of its square in this blue, over the stone. */
+const LAST_MOVE = "#5cb8ff";
 /** Stone radius, in squares. */
 const STONE = 0.48;
-/** Radius of the last-move dot, in squares. */
-const LAST_MOVE_DOT = 0.2;
 /**
  * Badges: the text is BADGE_FONT of a square tall and never under
  * BADGE_MIN_PX, times the viewer's size setting. The played move's badge
- * sits PLAYED_INSET of a square out from the stone's centre, clear of the
- * last-move dot, and is PLAYED_SCALE times larger with a heavier edge. The
- * visits line, when shown, is VISITS_FONT of the first line's size.
+ * sits PLAYED_INSET of a square out from the stone's centre and is
+ * PLAYED_SCALE times larger with a heavier edge. The visits line, when
+ * shown, is VISITS_FONT of the first line's size.
  */
 const BADGE_FONT = 0.4;
 const BADGE_MIN_PX = 12;
@@ -198,8 +197,14 @@ export function Goban({
       }
 
       if (lastMove) {
+        // Cut from the square's upper-right corner to its lower-left.
+        const left = lastMove[0] * square;
+        const top = lastMove[1] * square;
         ctx.beginPath();
-        ctx.arc(centre(lastMove[0]), centre(lastMove[1]), square * LAST_MOVE_DOT, 0, Math.PI * 2);
+        ctx.moveTo(left + square, top);
+        ctx.lineTo(left + square, top + square);
+        ctx.lineTo(left, top + square);
+        ctx.closePath();
         ctx.fillStyle = LAST_MOVE;
         ctx.fill();
       }
@@ -273,9 +278,11 @@ export function Goban({
       type Badge = Rect & { radii: number[]; fill: string; lines: string[]; font: number; sub: number; edge: string; line: number };
 
       // A candidate's badge is centred on its point. Badges that would
-      // overlap each other, or the red dot, are pushed apart along the line
-      // between their points, never by more than BADGE_NUDGE of their size,
-      // so each still sits on its own point; the board's edge holds them in.
+      // overlap each other are pushed apart along the line between their
+      // points, and those right of or below the played stone are pushed off
+      // its square, which holds the last-move mark; never by more than
+      // BADGE_NUDGE of their size, so each still sits on its own point. The
+      // board's edge holds them in.
       const cands = shown.map((m) => {
         const { w, h, r, sub } = measure(m.lines, markFont);
         const homeX = gridPixel(m.vertex[0]) - (w - 1) / 2;
@@ -289,7 +296,7 @@ export function Goban({
         c.x = Math.max(0, Math.min(px - c.w, Math.max(c.homeX - dx, Math.min(c.homeX + dx, x))));
         c.y = Math.max(0, Math.min(px - c.h, Math.max(c.homeY - dy, Math.min(c.homeY + dy, y))));
       };
-      // Moves `c` away from `other` along one axis, the two sharing the move; with no `other`, away from the red dot, which stays.
+      // Moves `c` away from `other` along one axis, the two sharing the move; with no `other`, off the played stone's square, which stays.
       const separate = (c: Cand, other: Cand | null, towardX: number, towardY: number, ox: number, oy: number) => {
         const share = other ? 0.5 : 1;
         if (towardY === 0 || (towardX !== 0 && ox <= oy)) {
@@ -301,11 +308,11 @@ export function Goban({
         }
       };
       cands.forEach((c) => place(c, c.x, c.y));
-      const dot = playedStone && {
-        x: centre(playedStone.vertex[0]) - LAST_MOVE_DOT * square,
-        y: centre(playedStone.vertex[1]) - LAST_MOVE_DOT * square,
-        w: 2 * LAST_MOVE_DOT * square,
-        h: 2 * LAST_MOVE_DOT * square,
+      const markSquare = playedStone && {
+        x: playedStone.vertex[0] * square,
+        y: playedStone.vertex[1] * square,
+        w: square,
+        h: square,
       };
       const overlap = (a: Rect, b: Rect) => [
         Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) - 1,
@@ -323,11 +330,11 @@ export function Goban({
               separate(a, b, Math.sign(b.m.vertex[0] - a.m.vertex[0]), Math.sign(b.m.vertex[1] - a.m.vertex[1]), ox, oy);
             }
           }
-          if (dot && playedStone) {
-            const [ox, oy] = overlap(a, dot);
-            if (ox > 0 && oy > 0) {
-              separate(a, null, Math.sign(playedStone.vertex[0] - a.m.vertex[0]), Math.sign(playedStone.vertex[1] - a.m.vertex[1]), ox, oy);
-            }
+          if (markSquare && playedStone) {
+            const sx = Math.sign(a.m.vertex[0] - playedStone.vertex[0]);
+            const sy = Math.sign(a.m.vertex[1] - playedStone.vertex[1]);
+            const [ox, oy] = overlap(a, markSquare);
+            if (sx >= 0 && sy >= 0 && ox > 0 && oy > 0) separate(a, null, -sx, -sy, ox, oy);
           }
         }
         if (positions() === before) break;

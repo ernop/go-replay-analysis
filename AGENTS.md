@@ -182,13 +182,16 @@ Convert only at the display layer, and follow these rules:
   carry Ogatak's "Delta + Visits" labels (the owner's Ogatak setting); guess
   mode's badges carry the points lost (visits only if the viewer turns them
   on), one per move: an option's centred on its point, the played move's at
-  a corner of its stone, never covering its red dot. Default text is at
+  a corner of its stone. Default text is at
   least 12 px; two sliders scale the played and other badges 50–200%.
   Which moves appear is Ogatak's count mode, the
   best plus the 5 lowest-cost moves with at least 1% of the position's
   visits. Details and reasons: PRODUCT.md "Review screen".
 - One continuous best→worst gradient, green to a soft red with no browns
   (`lib/review.ts`); no special colour for the top move.
+- The last move is a light blue triangle filling the lower-right half of its
+  square, over the stone, in every mode. Not Ogatak's red dot: the owner
+  dislikes red there (2026-09-30), and red means a bad move.
 - Never show the future: no next-move marker, charts end at the current
   move, and the result appears only once the last move is on the board.
   Guess mode shows a move's own value only once that move is on the board
