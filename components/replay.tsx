@@ -5,6 +5,7 @@ import Link from "next/link";
 import GoBoard from "@sabaki/go-board";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import { Goban, type BoardMark, type PlayedMark } from "@/components/goban";
+import { NotchedSlider } from "@/components/notched-slider";
 import { ReviewCharts } from "@/components/review-charts";
 import { TagEditor } from "@/components/tag-editor";
 import { handleOf, playedOn } from "@/lib/library";
@@ -15,6 +16,7 @@ import {
   gtpToVertex,
   positionCandidates,
   rateMove,
+  lossLabel,
   selectCandidates,
   vertexToGtp,
   visitsLabel,
@@ -60,6 +62,16 @@ const REVEALS = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15, 20];
 const DEFAULT_REVEAL = "3";
 /** reveal-in in globals.css: a 200ms wait, then a 250ms fade. */
 const REVEAL_FADE_IN_MS = 450;
+
+/** Guess mode's badge size sliders, in percent of the default size. */
+const BADGE_SIZE = { min: 50, max: 200, step: 10, numbered: [100, 150] };
+
+function parseBadgeSize(setting: string): number {
+  const n = Number(setting);
+  return Number.isInteger(n) && n >= BADGE_SIZE.min && n <= BADGE_SIZE.max && (n - BADGE_SIZE.min) % BADGE_SIZE.step === 0
+    ? n
+    : 100;
+}
 
 /** A shown rating: `idx` is the position after the rated move. */
 interface Reveal {
@@ -119,26 +131,17 @@ function countStones(signMap: number[][], sign: number): number {
   return n;
 }
 
-/** Analysis mode labels circles "Delta + Visits" (the owner's Ogatak setting); guess mode only the Delta. */
 function candidateMarks(
   shown: BoardCandidate[],
-  bestLead: number,
-  side: "B" | "W",
   scale: number,
   size: number,
-  withVisits: boolean
+  lines: (s: BoardCandidate) => string[]
 ): BoardMark[] {
   const marks: BoardMark[] = [];
   for (const s of shown) {
     const vertex = gtpToVertex(s.candidate.move, size);
     if (!vertex) continue;
-    marks.push({
-      vertex,
-      fill: costColour(s.cost, scale),
-      lines: withVisits
-        ? [deltaLabel(bestLead, s.candidate.scoreLead, side), visitsLabel(s.candidate.visits)]
-        : [deltaLabel(bestLead, s.candidate.scoreLead, side, 1)],
-    });
+    marks.push({ vertex, fill: costColour(s.cost, scale), lines: lines(s) });
   }
   return marks;
 }
@@ -151,6 +154,9 @@ export function Replay({ id }: { id: number }) {
   const [speedSetting, setSpeedSetting] = useStoredString("replay.speed", String(DEFAULT_SPEED));
   const [modeSetting, setModeSetting] = useStoredString("replay.mode", "analysis");
   const [revealSetting, setRevealSetting] = useStoredString("replay.reveal", DEFAULT_REVEAL);
+  const [playedSizeSetting, setPlayedSizeSetting] = useStoredString("replay.playedBadge", "100");
+  const [markSizeSetting, setMarkSizeSetting] = useStoredString("replay.otherBadges", "100");
+  const [visitsSetting, setVisitsSetting] = useStoredString("replay.badgeVisits", "0");
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
   const [analysisState, setAnalysisState] = useState("none");
@@ -161,6 +167,9 @@ export function Replay({ id }: { id: number }) {
   const mode: BoardMode = MODES.includes(modeSetting as BoardMode) ? (modeSetting as BoardMode) : "analysis";
   const revealChoice = parseReveal(revealSetting);
   const revealMs = REVEALS.includes(Number(revealChoice)) ? Number(revealChoice) * 1000 : null;
+  const playedSize = parseBadgeSize(playedSizeSetting);
+  const markSize = parseBadgeSize(markSizeSetting);
+  const showVisits = visitsSetting === "1";
 
   const typical = useMemo(() => (detail ? typicalSeconds(detail.moves) : null), [detail]);
   const factor = speedSetting.startsWith("real:") ? Number(speedSetting.slice(5)) : NaN;
@@ -298,6 +307,14 @@ export function Replay({ id }: { id: number }) {
     );
   }, [idx]);
 
+  // Changing how the badges look shows the current move's, and keeps them up while it changes.
+  const previewBadges = useCallback(() => {
+    if (idx === 0) return;
+    setReveal((r) =>
+      r && r.idx === idx && r.on ? { ...r } : { idx, serial: (r?.serial ?? 0) + 1, on: true, landed: false }
+    );
+  }, [idx]);
+
   const changeMode = useCallback(
     (next: string) => {
       setModeSetting(next);
@@ -412,19 +429,29 @@ export function Replay({ id }: { id: number }) {
   const atEnd = moveCount > 0 && idx >= moveCount;
   const result = atEnd ? gameResult(g.result) : null;
 
+  // Analysis mode's circles carry "Delta + Visits" (the owner's Ogatak
+  // setting); guess mode's badges carry the points lost, and the visits when
+  // the viewer asks for them.
   let marks: BoardMark[] = [];
   let played: PlayedMark | null = null;
   if (mode === "analysis") {
     const infos = positionCandidates(current);
     const { shown, scale } = selectCandidates(infos, sideToMove, current?.visits ?? 0);
-    marks = candidateMarks(shown, infos[0]?.scoreLead ?? 0, sideToMove, scale, size, true);
+    const bestLead = infos[0]?.scoreLead ?? 0;
+    marks = candidateMarks(shown, scale, size, (s) => [
+      deltaLabel(bestLead, s.candidate.scoreLead, sideToMove),
+      visitsLabel(s.candidate.visits),
+    ]);
   } else if (rating && shownReveal && lastPlayed) {
-    marks = candidateMarks(rating.alternatives, rating.bestLead, lastPlayed.color, rating.scale, size, false);
+    const badgeLines = (cost: number, visits: number) =>
+      showVisits ? [lossLabel(cost), visitsLabel(visits)] : [lossLabel(cost)];
+    const bestFirst = [...rating.alternatives].sort((a, b) => a.cost - b.cost);
+    marks = candidateMarks(bestFirst, rating.scale, size, (s) => badgeLines(s.cost, s.candidate.visits));
     if (lastPlayed.vertex) {
       played = {
         vertex: lastPlayed.vertex,
         fill: costColour(rating.playedCost, rating.scale),
-        label: deltaLabel(rating.bestLead, rating.playedLead, lastPlayed.color, 1),
+        lines: badgeLines(rating.playedCost, rating.playedVisits),
       };
     }
   }
@@ -458,7 +485,9 @@ export function Replay({ id }: { id: number }) {
           lastMove={pos.lastMove}
           marks={marks}
           played={played}
-          smallMarks={mode === "guess"}
+          badges={mode === "guess"}
+          markScale={markSize / 100}
+          playedScale={playedSize / 100}
           marksKey={mode === "guess" ? `reveal-${reveal?.serial ?? 0}` : mode}
           marksClassName={mode === "guess" ? revealClass : undefined}
           onBoardClick={mode === "guess" ? toggleReveal : undefined}
@@ -595,6 +624,47 @@ export function Replay({ id }: { id: number }) {
               </label>
             )}
           </div>
+          {mode === "guess" && (
+            <div className="grid gap-x-6 gap-y-1 pt-1 @min-[640px]:grid-cols-2">
+              <NotchedSlider
+                label="played move size"
+                title="Size of the played move's badge, in percent of the default."
+                value={playedSize}
+                {...BADGE_SIZE}
+                unit="%"
+                onChange={(v) => {
+                  setPlayedSizeSetting(String(v));
+                  previewBadges();
+                }}
+              />
+              <NotchedSlider
+                label="other moves size"
+                title="Size of the other moves' badges, in percent of the default."
+                value={markSize}
+                {...BADGE_SIZE}
+                unit="%"
+                onChange={(v) => {
+                  setMarkSizeSetting(String(v));
+                  previewBadges();
+                }}
+              />
+              <label
+                className="fs-caption flex items-center gap-2"
+                title="Also show, under each badge's points, how many visits the engine spent on that move."
+              >
+                <input
+                  type="checkbox"
+                  className="size-4 accent-gold"
+                  checked={showVisits}
+                  onChange={(e) => {
+                    setVisitsSetting(e.target.checked ? "1" : "0");
+                    previewBadges();
+                  }}
+                />
+                show visits too
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">

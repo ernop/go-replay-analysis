@@ -66,21 +66,22 @@ function sameMove(a: string, b: string): boolean {
 
 /**
  * The played move's score (Black-POV), comparable with the other candidates
- * of the position it was played from. KataGo's own value is used only when
- * the move had the board's minimum visits; below that it is unsettled, and
- * the position after the move, which had a full search of its own, values
- * it instead (PRODUCT.md "Guess mode").
+ * of the position it was played from, and the visits of the search that gave
+ * it. KataGo's own value is used only when the move had the board's minimum
+ * visits; below that it is unsettled, and the position after the move, which
+ * had a full search of its own, values it instead (PRODUCT.md "Guess mode").
  */
-export function playedMoveLead(
+export function playedMoveValue(
   parent: AnalysisPosition,
   child: AnalysisPosition | undefined,
   played: string
-): number | null {
+): { lead: number; visits: number } | null {
   const entry = (parent.candidates ?? parent.top ?? []).find((c) => sameMove(c.move, played));
   if (entry && entry.source !== "continuation" && entry.visits >= candidateMinVisits(parent.visits)) {
-    return entry.scoreLead;
+    return { lead: entry.scoreLead, visits: entry.visits };
   }
-  return child?.scoreLead ?? entry?.scoreLead ?? null;
+  if (child) return { lead: child.scoreLead, visits: child.visits };
+  return entry ? { lead: entry.scoreLead, visits: entry.visits } : null;
 }
 
 export interface MoveRating {
@@ -88,6 +89,8 @@ export interface MoveRating {
   alternatives: BoardCandidate[];
   bestLead: number;
   playedLead: number;
+  /** Visits behind `playedLead`: the move's own, or the following position's when that valued it. */
+  playedVisits: number;
   /** Points the move threw away, >= 0. */
   playedCost: number;
   /** Gradient scale; includes the played move, so a move worse than every alternative ends up at the far end. */
@@ -103,15 +106,16 @@ export function rateMove(
 ): MoveRating | null {
   const infos = positionCandidates(parent);
   if (!parent || infos.length === 0) return null;
-  const playedLead = playedMoveLead(parent, child, played);
-  if (playedLead === null) return null;
+  const value = playedMoveValue(parent, child, played);
+  if (value === null) return null;
   const { shown, scale } = selectCandidates(infos, mover, parent.visits);
   const bestLead = infos[0].scoreLead;
-  const playedCost = candidateCost(bestLead, playedLead, mover);
+  const playedCost = candidateCost(bestLead, value.lead, mover);
   return {
     alternatives: shown.filter((s) => !sameMove(s.candidate.move, played)),
     bestLead,
-    playedLead,
+    playedLead: value.lead,
+    playedVisits: value.visits,
     playedCost,
     scale: Math.max(scale, playedCost),
   };
@@ -122,6 +126,12 @@ export function deltaLabel(bestLead: number, lead: number, side: "B" | "W", digi
   const val = side === "B" ? lead - bestLead : bestLead - lead;
   const size = Math.abs(val).toFixed(digits);
   return Number(size) === 0 ? "0" : (val < 0 ? "-" : "+") + size;
+}
+
+/** Guess mode's label: points lost against the best move, one decimal, whole points from 10 up; "0" when it rounds to nothing. */
+export function lossLabel(cost: number): string {
+  const text = cost.toFixed(cost >= 9.95 ? 0 : 1);
+  return Number(text) === 0 ? "0" : text;
 }
 
 /** ogatak "Visits". */

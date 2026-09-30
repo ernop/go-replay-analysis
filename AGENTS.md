@@ -43,10 +43,14 @@ this repo's docs, not in an agent's private memory.
  data.
 - `components/` — `replay.tsx` (replayer: player boxes, big one-move
   controls, board modes, guess mode's timing),
-  `goban.tsx` (canvas board, Ogatak look; stones on one canvas, circles on a
-  layer above that guess mode fades), `review-charts.tsx` (canvas ports of
+  `goban.tsx` (canvas board, Ogatak look; stones on one canvas, candidate
+  marks on a layer above that guess mode fades: analysis mode's circles, or
+  guess mode's badges, the options' centred on their points and the played
+  move's at a corner of its stone),
+  `review-charts.tsx` (canvas ports of
   ogatak-clear's MOVE QUALITY and GAME STATUS, each opening and closing),
-  shadcn primitives in
+  `notched-slider.tsx` (the app's slider: a notch at every step, numbered
+  ends, the value beside its label), shadcn primitives in
   `components/ui/`. The review screen is specified in PRODUCT.md "Review
   screen"; its reference implementation is `~/proj/ogatak-clear/src/modules/`
   (`move_report.js`, `board_drawer.js`, `colour_gradients.js`, `utils.js`).
@@ -176,7 +180,11 @@ Convert only at the display layer, and follow these rules:
 - Candidates are shown relative to the best move from this position (0 =
   best), never relative to the global board value. In analysis mode circles
   carry Ogatak's "Delta + Visits" labels (the owner's Ogatak setting); guess
-  mode's carry only the Delta. Which moves appear is Ogatak's count mode, the
+  mode's badges carry the points lost (visits only if the viewer turns them
+  on), one per move: an option's centred on its point, the played move's at
+  a corner of its stone, never covering its red dot. Default text is at
+  least 12 px; two sliders scale the played and other badges 50–200%.
+  Which moves appear is Ogatak's count mode, the
   best plus the 5 lowest-cost moves with at least 1% of the position's
   visits. Details and reasons: PRODUCT.md "Review screen".
 - One continuous best→worst gradient, green to a soft red with no browns
