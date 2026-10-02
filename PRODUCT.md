@@ -130,8 +130,51 @@ direction").
     but have no fetcher yet.
 - DGS names players as "Real Name (handle)", so person-matching also matches a
   registered username appearing as `(handle)` inside the player name.
-- Fetches are capped (~30 games) and throttled to be polite; games are deduped by a
-  per-source key (`ogs:<id>`, `kgs:<path>`, `upload:<sha1>`, `seed:<file>`).
+- Fetches are capped (30 games on OGS and KGS, 400 on DGS) and throttled to be
+  polite; games are deduped by a per-source key (`ogs:<id>`, `kgs:<path>`,
+  `dgs:<gid>`, `upload:<sha1>`, `seed:<file>`).
+- **DGS games are matched by their DGS game id, whatever their key**
+  (decided 2026-10-02). The 572 DGS games copied from tvnik on 2026-09-25
+  are keyed `tvnik:<id>`, so a fetch that only looked for `dgs:<gid>` would
+  have stored about 400 of Adam's games a second time. DGS names every game
+  "white-black-gid-yyyymmdd" (its SGF's `GN`, the library's event, e.g.
+  `adum-davew-1506270-20260923`), and all 572 copies carry that name, so the
+  fetcher reads the id from there too. The first fetch from the PC
+  (2026-10-02) checked Adam's 400 newest finished games and added the one
+  game missing: game 582, `adum` against `SAKO`, ended 2026-09-24.
+
+## Professional games (added 2026-10-02)
+
+The owner, 2026-10-02: "can you pull some games of the japan china big
+international match too, ike yoda norimoto and that kind? maybe get 20."
+
+- **What:** 20 games from the NEC Japan–China Super Go (1984–1996, a
+  win-and-continue team match), library ids 583–602: all 17 of Yoda
+  Norimoto's games in the collection, plus the three games that ended the
+  1st–3rd series, Nie Weiping's wins over Fujisawa Shuko, Otake Hideo and
+  Kato Masao.
+- **Source:** Andries Brouwer's collection,
+  homepages.cwi.nl/~aeb/go/games/games/CJSuperGo/ ("The games here are in
+  the public domain"), the same collection as the seed games. Its index
+  lists each game's round, date, players (an asterisk marks Black), result
+  and rules (J or C); its Super Go games come mostly from Martin Müller's
+  collection.
+- **Header fixes before upload** (moves untouched), checked first against the
+  index, which agreed on every game's players, colours, result and date:
+  - Rules from the index where the file has no `RU` (4th series games 1–4,
+    5th series game 1). Without `RU` the analysis job assumes Japanese
+    rules.
+  - `KM[5.5]` for 9th series game 4, whose file has no komi. The job would
+    assume 6.5; every other game in the series has 5.5, the komi in both
+    countries until 2001–02.
+  - Ranks as pro ranks, "9p" rather than the files' "9d", since the library
+    shows ranks beside names and "9d" reads as amateur.
+- **How:** through the normal upload route (`POST /api/games`), so they are
+  source "upload", keyed by content hash, and a second upload of the same
+  file is skipped. They need no person: no tracked account matches them.
+- **Analysis:** queued right after Adam's game 582: 4,735 positions at
+  10,000 visits, about 7 hours on the 3090. Until a game is analysed, the
+  library's default "analysis done" filter hides it.
 
 ## What the servers record (checked 2026-09-30)
 

@@ -70,6 +70,9 @@ this repo's docs, not in an agent's private memory.
 - `lib/fetchers/{ogs,kgs,dgs}.ts` — game fetchers per server. OGS's also
   reads each game's API record and writes its end date and move times into
   the stored SGF (`ogsRecord`; PRODUCT.md "What the servers record").
+  DGS's skips games already stored under any key (the copies from tvnik
+  are `tvnik:<id>`), reading the DGS id from each game's name
+  (`knownDgsGames`; PRODUCT.md "People & accounts").
 - `scripts/analyzer.mjs` — the analysis worker (runs on the PC; 10,000 visits
   by default, and it re-analyses shallower games when the queue is empty);
   `scripts/katago-analysis.cfg` — its KataGo config (4 positions at once).
@@ -177,6 +180,20 @@ visits, CPU build): all 63 positions posted and stored. `--mock` produces fake
 data for UI work and never re-analyses; `--once` exits when there is nothing
 left to do; `--no-deepen` leaves shallower analyses alone.
 
+A worker started from a chat's or terminal's shell dies with it. To keep it
+running, start it as a transient user service (linger is on, so it also
+survives logout); with `--once` it ends when the queue is empty:
+
+    systemd-run --user --unit=go-replay-analyzer \
+      --working-directory=/home/ef/proj/go-replay-analysis \
+      /usr/bin/node scripts/analyzer.mjs --server http://127.0.0.1:4517 \
+      --katago /home/ef/katago/trt/katago-trt \
+      --model /home/ef/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz --once
+
+Log: `journalctl --user -u go-replay-analyzer`. Stop:
+`systemctl --user stop go-replay-analyzer`; the game it was on stays
+`running` until the 15-minute rule above hands it out again.
+
 API routes have no authentication. Acceptable on the home LAN only; add auth
 before exposing the app through a tunnel.
 
@@ -243,6 +260,12 @@ Convert only at the display layer, and follow these rules:
   plus the 9 seeds, 581 in all): 177 `kouchi` games (2004–2011) and 395
   `adum` games (Adam = DGS `adum`, "adam miller"). `kochi` ("ernie (kochi)")
   is also the owner's account and is not yet registered.
+- Added 2026-10-02, 602 games in all: game 582, the one game of Adam's newer
+  than the copy from tvnik (PRODUCT.md "People & accounts"), and 20
+  Japan–China Super Go games, ids 583–602, 17 of them Yoda Norimoto's
+  (PRODUCT.md "Professional games"). All 21 were queued that afternoon,
+  Adam's first, and the `go-replay-analyzer` user service started at 14:50
+  to analyse them (about 7 hours at 10,000 visits).
 - The worker stores every move KataGo reports, plus the played move's value
   from the following position when KataGo did not report it. It retries a
   failed results post 6 times over about 30 s, because the dev server returns

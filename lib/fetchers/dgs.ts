@@ -9,6 +9,25 @@ const PAGE_SIZE = 100; // DGS quick-suite maximum per page
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * DGS game ids already in the library. Games fetched here are keyed
+ * "dgs:<gid>", but copies can sit under other keys (the games copied from
+ * tvnik are "tvnik:<id>"), so the id also comes from the game's name, which
+ * DGS writes as "white-black-<gid>-<yyyymmdd>".
+ */
+function knownDgsGames(db: Database.Database): Set<number> {
+  const known = new Set<number>();
+  const rows = db.prepare("SELECT source_key, event FROM games").all() as {
+    source_key: string | null;
+    event: string;
+  }[];
+  for (const r of rows) {
+    const m = /^dgs:(\d+)$/.exec(r.source_key ?? "") ?? /-(\d+)-\d{8}$/.exec(r.event);
+    if (m) known.add(Number(m[1]));
+  }
+  return known;
+}
+
+/**
  * Dragon Go Server "quick suite" client.
  *
  * DGS removed all anonymous list/status access (only sgf.php is public), so
@@ -104,17 +123,12 @@ export async function fetchDgsGames(
   }
 
   // 4. download SGFs (public endpoint)
+  const known = knownDgsGames(db);
   let added = 0;
   let skipped = 0;
   for (const item of items.slice(0, MAX_GAMES)) {
     const gid = Number(item.id);
-    if (!Number.isFinite(gid) || gid <= 0) {
-      skipped++;
-      continue;
-    }
-    const sourceKey = `dgs:${gid}`;
-    const exists = db.prepare("SELECT id FROM games WHERE source_key = ?").get(sourceKey);
-    if (exists) {
+    if (!Number.isFinite(gid) || gid <= 0 || known.has(gid)) {
       skipped++;
       continue;
     }
@@ -124,9 +138,11 @@ export async function fetchDgsGames(
       continue;
     }
     const sgf = await res.text();
-    const result = ingestSgf(db, sgf, "dgs", sourceKey);
-    if (result.added) added++;
-    else skipped++;
+    const result = ingestSgf(db, sgf, "dgs", `dgs:${gid}`);
+    if (result.added) {
+      added++;
+      known.add(gid);
+    } else skipped++;
     await sleep(300); // be polite; DGS rate-limits aggressively
   }
   return {
