@@ -317,7 +317,9 @@ to make baord bigger if i want", then "when i pause, i shall never then
 hide the analysis info. pausing shall keep it in the saem state." and, of a
 screenshot where the played move's ".2" sat at its stone's lower-left
 corner, "let's find a way to move the ".2" review of the just—played move
-back on top of the move so it's clear pelase."
+back on top of the move so it's clear pelase." Then: "the right—side
+display of movenumber "9 / 176" is weird and too big. don't use "/" for
+layout control in html; you cna just hard—set divisions, riwos."
 
 What these say about what the owner wants, and so how to decide future
 questions:
@@ -336,6 +338,9 @@ questions:
   bottom, after everything that is read.
 - **One plain font; hierarchy from size and weight.** No monospace, no
   colour-coded labels.
+- **Layout from structure, not punctuation.** Values that belong together
+  sit in rows and columns of their own, each with its label, rather than
+  strung along one line with a "/" between them.
 - **Guess first, then judge, at the viewer's pace and in both directions.**
   The owner studies by predicting each move, and the analysis is the answer
   key. It comes back when a move is revisited, and it can wait for the viewer
@@ -461,7 +466,11 @@ top to bottom:
   - under it, previous and next move as two half-width 64 px buttons holding
     only an arrow;
   - a small row: first move at the left, last move at the right, and between
-    them the move counter and, in guess mode, the "lost" badge;
+    them the move counter and, in guess mode, the "lost" badge. The counter
+    is two rows, "move 9" over "total 176": labels at caption size, the
+    numbers right-aligned under each other at body size, the current one
+    bold. Until 2026-10-02 it was one line, "move 9 / 176", with the 9 at
+    22 px, which the owner found "weird and too big";
   - the settings, small: "every", "mode", and in guess mode the "show
     analysis" button with the setting for how long analysis shows. Guess
     mode's badge settings are the panel's last row (below).

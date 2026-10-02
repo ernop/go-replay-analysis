@@ -186,6 +186,9 @@ All KataGo values are stored Black-POV (`reportAnalysisWinratesAs = BLACK`).
 Convert only at the display layer, and follow these rules:
 
 - No bare signed numbers: "B+2.3", "W 61%".
+- No "/" between values as layout: values that belong together get rows
+  and columns of their own, each labelled (the move counter is "move 9"
+  over "total 176").
 - Points are written one way everywhere (`pointsLabel`): one decimal with
   no leading zero (".3", "-.5", "B+2.4"), whole points from 10 up. That
   covers both board modes' labels, the "lost" readout, and the charts'

@@ -597,12 +597,13 @@ export function Replay({ id }: { id: number }) {
             <SmallButton title="First move (Home)" onClick={() => goTo(0)}>
               <ChevronFirst size={18} />
             </SmallButton>
-            <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-3">
-              <span className="whitespace-nowrap">
-                <span className="fs-caption">move </span>
-                <span className="fs-emph font-bold tabular-nums">{idx}</span>
-                <span className="fs-ui tabular-nums"> / {moveCount}</span>
-              </span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-x-4">
+              <dl className="grid grid-cols-[auto_auto] items-baseline gap-x-2 leading-tight">
+                <dt className="fs-caption">move</dt>
+                <dd className="fs-body text-right font-bold tabular-nums">{idx}</dd>
+                <dt className="fs-caption">total</dt>
+                <dd className="fs-body text-right tabular-nums">{moveCount}</dd>
+              </dl>
               {mode === "guess" && (
                 // Kept even when empty, so nothing shifts when a rating appears.
                 <span className="flex min-w-[6.5rem] items-baseline">
@@ -716,7 +717,7 @@ export function Replay({ id }: { id: number }) {
           ) : analysisState === "queued" || analysisState === "running" ? (
             SITE_MODE === "lan" ? (
               <p className="fs-body">
-                {analysisState === "queued" ? "Queued for analysis" : "Analyzing"}: {analysisProgress}/{analysisTotal}{" "}
+                {analysisState === "queued" ? "Queued for analysis" : "Analyzing"}: {analysisProgress} of {analysisTotal}{" "}
                 positions. The worker runs on the GPU machine: <code className="font-bold">npm run analyze</code>
               </p>
             ) : (
@@ -775,7 +776,7 @@ export function Replay({ id }: { id: number }) {
             {analysis && (
               <span>
                 {analysis.engine} · {analysis.maxVisits.toLocaleString("en-US")} visits per position ·{" "}
-                {analysisProgress}/{analysisTotal} positions
+                {analysisProgress} of {analysisTotal} positions
               </span>
             )}
           </div>
