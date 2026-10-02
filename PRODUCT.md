@@ -309,7 +309,15 @@ should use the same dec point viz as the one on the baord. ofc. so just 1
 decimal point tehre always. the border of both types of eval info things
 should match teh color fo thestone they're evaluating. add a quick override
 toggler "show analysis" which forces analysis to show til the next move is
-played, at which point the new one will be shown."
+played, at which point the new one will be shown." On 2026-10-02, told that
+analysis mode's labels still had two decimals: "i said for "0.2" you should
+write just ".2" righT? and make the markers at least symmetrical". That
+afternoon: "let me move the divider between baord and controls left/right
+to make baord bigger if i want", then "when i pause, i shall never then
+hide the analysis info. pausing shall keep it in the saem state." and, of a
+screenshot where the played move's ".2" sat at its stone's lower-left
+corner, "let's find a way to move the ".2" review of the just—played move
+back on top of the move so it's clear pelase."
 
 What these say about what the owner wants, and so how to decide future
 questions:
@@ -332,11 +340,15 @@ questions:
   The owner studies by predicting each move, and the analysis is the answer
   key. It comes back when a move is revisited, and it can wait for the viewer
   instead of timing out, so autoplay never outruns thinking.
+- **Paused means still.** Pausing is how the owner stops to look, so while
+  autoplay is paused nothing on the board changes by itself: what shows
+  stays, what is hidden stays hidden, until he acts.
 - **Numbers must be trustworthy, and few.** An option backed by 40 visits is
   noise. On the board, guess mode says only how much worse each option was.
-  A value reads the same wherever it appears: the points a move lost have
-  one decimal and no leading zero (".3"), on the board and beside the move
-  counter alike.
+  Points read the same wherever they appear: one decimal and no leading
+  zero (".3", "-.5", "B+2.4"), whole points from 10 up ("12"). That holds
+  for guess mode's badges and "lost" readout, analysis mode's circles, and
+  the charts' hover values alike (`pointsLabel` in `lib/review.ts`).
 - **A calm colour language.** Good is green, bad a soft red, and nothing in
   between looks muddy. Red is for bad moves only: the move just played is
   marked in light blue, a colour nothing else on the board uses.
@@ -344,8 +356,9 @@ questions:
   in the badge that holds its number. An option's badge is centred on its own
   point, so its place alone says which point it marks, and is a circle with
   a rim in the mover's colour, like the stone that could have gone there; the
-  played move's is a rectangle at a corner of its stone, which cannot be
-  mistaken, edged in the same colour. Every rating's border, the "lost"
+  played move's is a rounded rectangle centred on its stone, edged in the
+  same colour, so it is on the move it rates. Every mark is symmetrical:
+  no corner differs from the others. Every rating's border, the "lost"
   readout's too, is the colour of the stone it rates. A mark that
   wanders to wherever there is room, or a second patch of the same colour,
   reads as clutter.
@@ -406,9 +419,10 @@ or with the last-move button; there is no reveal button.
   wood and to carry black text. Colours are interpolated in linear sRGB, with
   the scale ending at the worst shown move (minimum 0.5 points).
 - In analysis mode each circle holds two lines of black text in the page's
-  font: "Delta" (for example "0" or "-0.42", this move's score minus the best
+  font: "Delta" (for example "0" or "-.4", this move's score minus the best
   move's, for the side to move) and "Visits". This matches the owner's Ogatak
-  setting `numbers: "Delta + Visits"`. The text is sized as in Ogatak's
+  setting `numbers: "Delta + Visits"`. Delta had two decimals ("-0.42")
+  until 2026-10-02; it is now written like every other number of points. The text is sized as in Ogatak's
   `board_font_chooser`, so "999" fills 59% of a square. Guess mode's badges
   hold the points lost, and the visits only when the viewer asks for them
   (see "Guess mode").
@@ -467,7 +481,8 @@ top to bottom:
     toggle switches to linear.
   - A "full" / "window" toggle with a "last N" box (default 40) switches to
     a sliding window.
-  - Clicking a chart jumps to that move, and hovering gives exact values.
+  - Clicking a chart jumps to that move, and hovering gives its value
+    ("#103: 5.9 points", "#28: B+6.1"), written like every number of points.
   - When the chart is short, an axis label that would overlap its neighbour
     is skipped.
   - "W ahead" / "B ahead" sit on the left, not the right as in Ogatak,
@@ -526,6 +541,20 @@ boxes; and the game info between the boxes.
   bar shrank on 2026-09-29).
   At a 1024 px window that is a 513 px board and a panel wide enough for the
   charts.
+- **The divider** (2026-10-02, the owner: "let me move the divider between
+  board and controls left/right to make board bigger if i want"): on
+  desktop a vertical bar between the board and the panel, with a grip at
+  its middle that lightens on hover and turns gold while dragged. Dragging
+  it sets the board's width as a share of the row, kept in the browser, so
+  the split stays proportional when the window changes size. The board
+  never gets taller than the window (its height is the limit, so on a
+  1920×1080 window, where the board already fills the height, the divider
+  can only make it smaller), never smaller than 320 px, and always leaves
+  the panel 288 px. There the panel reflows to one column of controls and
+  scrolls inside itself. Double-clicking the divider goes back to the
+  default size above. It takes no keyboard focus, so the arrow keys keep
+  stepping moves after a drag. Phones, with their one column, have no
+  divider.
 - On phones (below 1024 px) the page is one scrolling column: players,
   board, controls (so taps land in the same place), Move quality, Game status,
   game facts, library actions, and in guess mode the badge settings.
@@ -573,16 +602,28 @@ a clean board, then sees how the real move compared.
     the played move's included, as a second line under the points, not bold,
     at 0.8 of their size: an option's own visits, and for the played move
     the visits of the search its value came from (see "Values").
-  - The played stone keeps its last-move triangle and gets a badge at its
-    lower right, 1.15 times larger and with a 2 px edge in the mover's
-    colour (black or white, like the options' rims), so it is the first
-    number the eye finds. The badge covers the triangle's square corner. On
-    a large board the triangle's diagonal edge and its ends still show round
-    it; on a phone, where the badge is bigger than the smaller triangle,
-    little more than its tip does. While the rating shows, the badge is the
-    move's mark, and the whole triangle is back when it fades. A move worse than every alternative
-    sets the far end of the colour scale, so it never shares their colour
-    (ogatak-clear rule 6).
+  - The played move's badge is centred on its stone, like an option's on
+    its point, so it sits on the move it rates. It is 1.15 times larger
+    than an option's, with a 2 px edge in the mover's colour (black or
+    white, like the options' rims), so it is the first number the eye
+    finds, and it is a rectangle with all four corners rounded alike, which
+    tells it from the options' circles. On a 1920 px screen it fits inside
+    the stone, which shows round it as a ring, and the last-move triangle
+    still shows at the square's corner with the middle of its long edge
+    under the badge. On a phone the badge is about as big as the square, so
+    it covers the stone and little more than the triangle's tip shows; its
+    shape and its edge in the mover's colour still mark the move. The whole
+    stone and triangle are back when the rating hides. A move worse than
+    every alternative sets the far end of the colour scale, so it never
+    shares their colour (ogatak-clear rule 6).
+  - How the played badge got here: from 2026-09-29 it hung from the stone's
+    lower right, covering the triangle's square corner, and took another
+    corner when the lower right would hide options' badges or points. Until
+    the morning of 2026-10-02 its corner toward the stone's centre was
+    square, to point at the stone, until the owner asked for the markers to
+    be "at least symmetrical". That afternoon one sat at its stone's lower
+    left, next to the options (game 404 move 9), and he asked for it "back
+    on top of the move so it's clear".
   - Badge size: by default the text is 0.4 of a square tall, never under
     12 px. That is 22 px on a 1920 px screen's 54 px squares, and 12 px on
     a phone's 19 px squares, where an option's badge reaches a little past
@@ -593,16 +634,17 @@ a clean board, then sees how the real move compared.
     other settings. Changing any of them shows the current move's
     rating again and restarts its time, so on a wide screen, where the
     board stays beside the panel, the effect is in view. On a phone the row
-    is at the bottom of the page; after scrolling up, a timed rating may
-    have faded, and a tap on the board shows it again.
+    is at the bottom of the page; after scrolling up during autoplay, a
+    timed rating may have faded, and a tap on the board shows it again.
   - Placement: an option's badge is centred on the middle of its crossing's
     1 px lines. Where two options' circles would overlap, they are pushed
     apart along the line between their points; diagonal neighbours whose
     circles clear each other stay put. One that would touch the
-    last-move triangle is pushed back off it. That test is against the
-    triangle itself, not the stone's whole square, so a neighbour to the
-    left or above may reach into the part of the square the triangle
-    leaves empty.
+    last-move triangle or the played move's badge is pushed back off it,
+    away from the played stone, which keeps its badge centred. The
+    triangle test is against the triangle itself, not the stone's whole
+    square, so a neighbour to the left or above may reach into the part of
+    the square the triangle leaves empty.
     Neither push is more than 30% of the badge's width, so each still
     covers its own crossing, and the board's edge holds them in, rims
     included. The rims are drawn as one layer under every badge, so they
@@ -613,9 +655,10 @@ a clean board, then sees how the real move compared.
     stone (game 404 move 119), overlapping only at their margins. With two
     lines (visits shown), or at large sizes, numbers there can still be
     clipped, because a circle holding two lines is about 30 px across (34
-    with its rim) on a 19 px square. The played stone cannot be mistaken, so its badge alone may
-    take another corner of the stone, when the lower right would hide
-    options' badges or points; it is drawn above them all.
+    with its rim) on a 19 px square. With the played badge centred on its
+    stone (2026-10-02), move 119's row still reads whole on a phone: the
+    option beside the stone just touches the badge. The played badge is
+    drawn above them all.
   - How it got here: until 2026-09-29 these were stone-sized circles like
     analysis mode's. That morning the played stone got a smaller disc ("so
     it's more obvious which move was just played!"), then every option did,
@@ -651,6 +694,16 @@ a clean board, then sees how the real move compared.
   0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15 or 20 s, "until next move", or
   "hold till accepted". The default 3 s is the owner's "momentarily". A timed
   rating counts from when it has fully faded in, then fades out over 0.5 s.
+  The time runs only during autoplay.
+- **Paused, nothing hides by itself** (2026-10-02; the owner: "when i
+  pause, i shall never then hide the analysis info. pausing shall keep it
+  in the saem state."). While autoplay is paused, or was never started, a
+  rating that shows stays until the viewer taps the board, presses Enter,
+  or steps to another move, whose rating then shows and stays the same way.
+  One that is hidden stays hidden. Pressing play starts a showing rating's
+  time afresh, and autoplay's interval starts in full, as it always has.
+  Before, a timed rating ran out while paused too, so a move paused on to
+  look at lost its analysis after 3 s.
 - **The "show analysis" button** (2026-09-30; the owner: "a quick override
   toggler "show analysis" which forces analysis to show til the next move is
   played, at which point the new one will be shown"). The words "show
@@ -659,8 +712,8 @@ a clean board, then sees how the real move compared.
   rating stays up until the next move lands, as with "until next move",
   whatever the setting says; the setting gives way to the words "until next
   move", and autoplay never holds. Pressed again, the setting applies from
-  that moment: a timed rating fades after its time, and "hold till
-  accepted" holds autoplay again. It is a quick override, not a setting, so
+  that moment: a timed rating fades after its time once autoplay runs, and
+  "hold till accepted" holds autoplay again. It is a quick override, not a setting, so
   it is not saved: opening a game starts with it off. Tapping the board
   still hides the rating while it is pressed, until the next move.
 - **Hold till accepted** (the owner: "keep showing analysis until i tap to go
@@ -745,7 +798,7 @@ Rules inherited from the owner's Ogatak fork (github.com/ernop/ogatak-clear,
 its PRODUCT.md is the reference; these supersede the stock-Ogatak display
 described under *Analysis pipeline*):
 
-- **No bare signed numbers.** Values name the colour they favour: "B+2.30",
+- **No bare signed numbers.** Values name the colour they favour: "B+2.3",
   "W 61%". Reason: POV-dependent signs force mental translation on every move.
 - **Move quality = points thrown away by the mover, ≥ 0**, vs the best move
   available *from that position* (parent root scoreLead − child root

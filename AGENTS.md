@@ -44,12 +44,13 @@ this repo's docs, not in an agent's private memory.
 - `components/` — `replay.tsx` (replayer: player boxes, big one-move
   controls, board modes, guess mode's timing, its "show analysis" override
   button and its badge settings row, the "info" card with komi, captures
-  and dates),
+  and dates, and the desktop divider that sets the board's share of the
+  width),
   `goban.tsx` (canvas board, Ogatak look; stones on one canvas, candidate
   marks on a layer above that guess mode fades: analysis mode's circles, or
   guess mode's badges, the options' circles rimmed in the mover's colour
-  and centred on their points, and the played move's a rectangle at a
-  corner of its stone, edged in the same colour),
+  and centred on their points, and the played move's a rounded rectangle
+  centred on its stone, edged in the same colour),
   `review-charts.tsx` (canvas ports of
   ogatak-clear's MOVE QUALITY and GAME STATUS, each opening and closing),
   shadcn primitives in `components/ui/`. The review screen is specified in PRODUCT.md "Review
@@ -61,8 +62,9 @@ this repo's docs, not in an agent's private memory.
   or from `TIMEUSED` (this app's own property, written by the OGS fetcher)
   (server only; `@sabaki/sgf` needs `fs`).
   `lib/gtp.ts` — GTP coordinates, safe to import in the browser.
-  `lib/review.ts` — candidate selection, Delta/Visits labels, gradient, and
-  guess mode's rating of a played move (`rateMove`).
+  `lib/review.ts` — candidate selection, Delta/Visits labels, `pointsLabel`
+  (the one way points are written), gradient, and guess mode's rating of a
+  played move (`rateMove`).
   `lib/use-stored.ts` — small settings kept in the browser's localStorage.
   `lib/types.ts` — shared types, tracked people.
 - `lib/fetchers/{ogs,kgs,dgs}.ts` — game fetchers per server. OGS's also
@@ -183,7 +185,11 @@ before exposing the app through a tunnel.
 All KataGo values are stored Black-POV (`reportAnalysisWinratesAs = BLACK`).
 Convert only at the display layer, and follow these rules:
 
-- No bare signed numbers: "B+2.30", "W 61%".
+- No bare signed numbers: "B+2.3", "W 61%".
+- Points are written one way everywhere (`pointsLabel`): one decimal with
+  no leading zero (".3", "-.5", "B+2.4"), whole points from 10 up. That
+  covers both board modes' labels, the "lost" readout, and the charts'
+  hover values.
 - Move quality = points the mover threw away vs the best available move,
   always >= 0 (parent root scoreLead − child root scoreLead, flipped for
   White, clamped at 0). Verdicts: <0.5 excellent, <1.5 good, <3 inaccuracy,
@@ -191,13 +197,13 @@ Convert only at the display layer, and follow these rules:
 - Candidates are shown relative to the best move from this position (0 =
   best), never relative to the global board value. In analysis mode circles
   carry Ogatak's "Delta + Visits" labels (the owner's Ogatak setting); guess
-  mode's badges carry the points lost, one decimal without a leading zero
-  (".3"), the same label as the "lost" readout beside the move counter
-  (visits only if the viewer turns them on), one per move: an option's a
-  circle centred on its point, with a solid rim in the colour of the stone
-  that would have gone there (under every badge, so it never covers a
-  number), and kept off the last-move triangle; the played move's at a
-  corner of its stone, edged in the mover's colour, as the readout is.
+  mode's badges carry the points lost, the same label as the "lost" readout
+  beside the move counter (visits only if the viewer turns them on), one
+  per move: an option's a circle centred on its point, with a solid rim in
+  the colour of the stone that would have gone there (under every badge, so
+  it never covers a number), and kept off the last-move triangle; the
+  played move's a rounded rectangle, all four corners alike, centred on its
+  stone, edged in the mover's colour, as the readout is.
   Default
   text is at
   least 12 px; two − / + steppers at the bottom of the panel scale the
@@ -215,6 +221,10 @@ Convert only at the display layer, and follow these rules:
   move, and the result appears only once the last move is on the board.
   Guess mode shows a move's own value only once that move is on the board
   (PRODUCT.md "Guess mode").
+- Paused means still: while autoplay is paused nothing on the board
+  changes by itself. A timed guess-mode rating counts down only during
+  autoplay; paused, it stays until the viewer taps, presses Enter, or
+  steps (PRODUCT.md "Guess mode").
 - Players are marked by colour (a black or white box, a small stone), never
   labelled with the words "Black" / "White", and named by their handle,
   never their real name.

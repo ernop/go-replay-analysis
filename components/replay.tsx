@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import Link from "next/link";
 import GoBoard from "@sabaki/go-board";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Info, Minus, Pause, Play, Plus } from "lucide-react";
@@ -14,9 +23,9 @@ import {
   costColour,
   deltaLabel,
   gtpToVertex,
+  pointsLabel,
   positionCandidates,
   rateMove,
-  lossLabel,
   selectCandidates,
   vertexToGtp,
   visitsLabel,
@@ -85,6 +94,17 @@ interface Reveal {
 
 const BIG_BUTTON =
   "flex w-full touch-manipulation items-center justify-center gap-2 rounded-sm border-2 bg-[#181818] hover:bg-[#222222] active:bg-[#2c2c2c]";
+
+/** The wide-screen divider between board and panel: its width, the smallest board it gives, and the room it always leaves the panel. */
+const DIVIDER_PX = 16;
+const BOARD_MIN_PX = 320;
+const PANEL_MIN_PX = 288;
+
+/** The board's share of the row's width once the divider has been dragged; null for the default size. */
+function parseBoardShare(setting: string): number | null {
+  const n = Number(setting);
+  return setting !== "" && n > 0.1 && n < 1 ? n : null;
+}
 
 function parseReveal(setting: string): string {
   // Settings saved as "hold" mean what is now "next".
@@ -158,6 +178,9 @@ export function Replay({ id }: { id: number }) {
   const [playedSizeSetting, setPlayedSizeSetting] = useStoredString("replay.playedBadge", "100");
   const [markSizeSetting, setMarkSizeSetting] = useStoredString("replay.otherBadges", "100");
   const [visitsSetting, setVisitsSetting] = useStoredString("replay.badgeVisits", "0");
+  const [boardShareSetting, setBoardShareSetting] = useStoredString("replay.boardShare", "");
+  const [resizingBoard, setResizingBoard] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
   // Guess mode's "show analysis" button: while it is pressed, each move's
   // analysis stays up until the next move, whatever the setting beside it.
@@ -175,6 +198,7 @@ export function Replay({ id }: { id: number }) {
   const playedSize = parseBadgeSize(playedSizeSetting);
   const markSize = parseBadgeSize(markSizeSetting);
   const showVisits = visitsSetting === "1";
+  const boardShare = parseBoardShare(boardShareSetting);
 
   const typical = useMemo(() => (detail ? typicalSeconds(detail.moves) : null), [detail]);
   const factor = speedSetting.startsWith("real:") ? Number(speedSetting.slice(5)) : NaN;
@@ -293,15 +317,17 @@ export function Replay({ id }: { id: number }) {
     return () => clearTimeout(timer);
   }, [playing, delay, idx, moveCount, goTo, holding]);
 
+  // A timed analysis runs out only while autoplay runs: paused, the board
+  // changes only when the viewer acts. Pressing play starts its time afresh.
   useEffect(() => {
-    if (!reveal?.on || revealMs === null) return;
+    if (!reveal?.on || revealMs === null || !playing) return;
     const serial = reveal.serial;
     const timer = setTimeout(
       () => setReveal((r) => (r && r.serial === serial ? { ...r, on: false } : r)),
       revealMs + (reveal.landed ? REVEAL_FADE_IN_MS : 0)
     );
     return () => clearTimeout(timer);
-  }, [reveal, revealMs]);
+  }, [reveal, revealMs, playing]);
 
   const toggleReveal = useCallback(() => {
     if (idx === 0) return;
@@ -455,7 +481,7 @@ export function Replay({ id }: { id: number }) {
     ]);
   } else if (rating && shownReveal && lastPlayed) {
     const badgeLines = (cost: number, visits: number) =>
-      showVisits ? [lossLabel(cost), visitsLabel(visits)] : [lossLabel(cost)];
+      showVisits ? [pointsLabel(cost), visitsLabel(visits)] : [pointsLabel(cost)];
     const bestFirst = [...rating.alternatives].sort((a, b) => a.cost - b.cost);
     marks = candidateMarks(bestFirst, rating.scale, size, (s) => badgeLines(s.cost, s.candidate.visits));
     if (lastPlayed.vertex) {
@@ -484,12 +510,24 @@ export function Replay({ id }: { id: number }) {
   const players = <Players game={g} toPlay={atEnd ? null : sideToMove} result={result} />;
 
   return (
-    <div className="flex flex-col gap-2 lg:h-[calc(100vh_-_45px)] lg:flex-row lg:items-start lg:gap-4">
+    <div
+      ref={rowRef}
+      className="flex flex-col gap-2 lg:h-[calc(100vh_-_45px)] lg:flex-row lg:items-start lg:gap-0"
+      style={boardShare === null ? undefined : ({ "--board-share": boardShare } as CSSProperties)}
+    >
       {/* Phones show the players above the board; desktop at the top of the panel. */}
       <div className="lg:hidden">{players}</div>
 
-      {/* The board takes the height (45px: the top bar and the page's vertical padding); the panel keeps at least about 430px. */}
-      <div className="relative aspect-square w-full lg:w-[min(calc(100vh_-_45px),calc(100vw_-_31rem))] lg:flex-none">
+      {/* The board takes the height (45px: the top bar and the page's vertical padding). By default the panel keeps at
+          least about 430px; once the divider is dragged the board takes its share of the row, and 304px is
+          PANEL_MIN_PX + DIVIDER_PX. */}
+      <div
+        className={`relative aspect-square w-full lg:flex-none ${
+          boardShare !== null || resizingBoard
+            ? "lg:w-[min(calc(100vh_-_45px),calc(var(--board-share)*100%),calc(100%_-_304px))]"
+            : "lg:w-[min(calc(100vh_-_45px),calc(100vw_-_31rem))]"
+        }`}
+      >
         <Goban
           size={size}
           signMap={pos.signMap}
@@ -513,6 +551,12 @@ export function Replay({ id }: { id: number }) {
           )}
         </Goban>
       </div>
+
+      <BoardDivider
+        rowRef={rowRef}
+        onResizing={setResizingBoard}
+        onChange={(share) => setBoardShareSetting(share === null ? "" : share.toFixed(4))}
+      />
 
       <div className="@container flex min-w-0 flex-1 flex-col gap-4 bg-[#111111] px-3 py-3 lg:h-full lg:overflow-y-auto lg:px-4">
         <div className="hidden flex-col gap-2 lg:flex @min-[720px]:flex-row @min-[720px]:items-center @min-[720px]:gap-5">
@@ -574,7 +618,7 @@ export function Replay({ id }: { id: number }) {
                           boxShadow: "0 0 0 1px #9a9a9a",
                         }}
                       >
-                        {lossLabel(rating.playedCost)}
+                        {pointsLabel(rating.playedCost)}
                       </span>
                     </span>
                   )}
@@ -624,13 +668,13 @@ export function Replay({ id }: { id: number }) {
               </select>
             </label>
             {mode === "guess" && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   aria-pressed={forceAnalysis}
                   onClick={toggleForceAnalysis}
                   title="Pressed: each move's analysis shows now and stays up until the next move is played, whatever the setting beside it says. Press again to go back to that setting."
-                  className={`h-8 touch-manipulation rounded-sm border-2 px-2 hover:bg-[#222222] ${forceAnalysis ? "border-gold" : "border-[#777777]"}`}
+                  className={`h-8 touch-manipulation whitespace-nowrap rounded-sm border-2 px-2 hover:bg-[#222222] ${forceAnalysis ? "border-gold" : "border-[#777777]"}`}
                 >
                   show analysis
                 </button>
@@ -642,7 +686,7 @@ export function Replay({ id }: { id: number }) {
                     onChange={(e) => setRevealSetting(e.target.value)}
                     className="field fs-ui"
                     aria-label="How long analysis shows"
-                    title="How long a move's analysis shows once it is on the board, whether you stepped forward or back. 'hold till accepted' keeps it, and holds autoplay, until you tap the board. Tap the board (or press Enter) any time to show or hide it."
+                    title="How long a move's analysis shows during autoplay once the move is on the board, whether you stepped forward or back. While paused it stays until you act. 'hold till accepted' keeps it, and holds autoplay, until you tap the board. Tap the board (or press Enter) any time to show or hide it."
                   >
                     {REVEALS.map((s) => (
                       <option key={s} value={String(s)}>
@@ -818,6 +862,81 @@ function SizeStepper({
           <Plus size={16} />
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The divider between the board and the panel on wide screens. Dragging it
+ * gives the board a share of the row: never taller than the row, never under
+ * BOARD_MIN_PX, and always leaving the panel PANEL_MIN_PX. Double-clicking
+ * goes back to the default size. It takes no focus, so the arrow keys keep
+ * stepping moves.
+ */
+function BoardDivider({
+  rowRef,
+  onResizing,
+  onChange,
+}: {
+  rowRef: RefObject<HTMLDivElement | null>;
+  onResizing: (on: boolean) => void;
+  onChange: (share: number | null) => void;
+}) {
+  const drag = useRef<{ startX: number; grab: number; share: number; moved: boolean } | null>(null);
+  const [active, setActive] = useState(false);
+
+  const shareAt = (clientX: number, grab: number): number | null => {
+    const row = rowRef.current;
+    if (!row) return null;
+    const width = row.clientWidth;
+    const most = Math.min(row.clientHeight, width - PANEL_MIN_PX - DIVIDER_PX);
+    const least = Math.min(most, BOARD_MIN_PX);
+    const board = clientX - grab - row.getBoundingClientRect().left;
+    return Math.max(least, Math.min(most, board)) / width;
+  };
+  const end = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d?.moved) return;
+    setActive(false);
+    onResizing(false);
+    onChange(d.share);
+  };
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Board size"
+      title="Drag to make the board bigger or smaller. Double-click for the default size."
+      className="group relative hidden w-4 flex-none cursor-col-resize touch-none select-none items-center justify-center lg:flex lg:self-stretch"
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const grab = e.clientX - e.currentTarget.getBoundingClientRect().left;
+        drag.current = { startX: e.clientX, grab, share: 0, moved: false };
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d || (!d.moved && Math.abs(e.clientX - d.startX) < 3)) return;
+        const share = shareAt(e.clientX, d.grab);
+        if (share === null) return;
+        d.share = share;
+        // Set before the board switches to the share rule, so its first frame already has a share.
+        rowRef.current?.style.setProperty("--board-share", String(share));
+        if (!d.moved) {
+          d.moved = true;
+          setActive(true);
+          onResizing(true);
+        }
+      }}
+      onPointerUp={end}
+      onPointerCancel={end}
+      onDoubleClick={() => onChange(null)}
+    >
+      <div className={`absolute inset-y-0 w-px ${active ? "bg-gold" : "bg-[#333333] group-hover:bg-[#9a9a9a]"}`} />
+      <div className={`relative h-12 w-1.5 rounded-full ${active ? "bg-gold" : "bg-[#777777] group-hover:bg-[#bbbbbb]"}`} />
     </div>
   );
 }

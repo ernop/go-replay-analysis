@@ -6,8 +6,9 @@
  *
  * `mode` is the board mode (analysis, guess, off). In guess mode each size
  * also gets a `-rating` shot, taken while the last move's rating shows; the
- * plain shot is taken after it has faded. The game's last viewed move is put
- * back afterwards (LAN app only).
+ * plain shot is taken after Enter has hidden it (paused, a rating stays up
+ * until the viewer acts). The game's last viewed move is put back afterwards
+ * (LAN app only).
  *
  * Playwright is not a dependency of this project; it is loaded from this
  * project if installed, otherwise from ~/proj/voice-wei/node_modules.
@@ -62,10 +63,11 @@ for (const size of sizes) {
   await page.click('[title="First move (Home)"]');
   for (let i = 0; i < move; i++) await page.click('[title="Next move (→)"]');
   if (mode === "guess") {
-    // reveal-in: 200ms wait + 250ms fade; the default reveal lasts 3 s more.
+    // reveal-in: 200ms wait + 250ms fade; hiding fades out over 0.5 s.
     await page.waitForTimeout(800);
     await page.screenshot({ path: `${outDir}/${size.name}-rating.png`, fullPage: !!size.mobile });
-    await page.waitForTimeout(3600);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(800);
   } else {
     await page.waitForTimeout(400);
   }

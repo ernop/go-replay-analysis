@@ -121,17 +121,17 @@ export function rateMove(
   };
 }
 
-/** ogatak "Delta": this move's score minus the best move's, for the side to move; "0" when it rounds to nothing. */
-export function deltaLabel(bestLead: number, lead: number, side: "B" | "W", digits = 2): string {
-  const val = side === "B" ? lead - bestLead : bestLead - lead;
-  const size = Math.abs(val).toFixed(digits);
-  return Number(size) === 0 ? "0" : (val < 0 ? "-" : "+") + size;
+/** A number of points as the app writes it everywhere: one decimal without a leading zero (".3"), whole points from 10 up ("12"); "0" when it rounds to nothing. */
+export function pointsLabel(points: number): string {
+  const text = points.toFixed(points >= 9.95 ? 0 : 1);
+  return Number(text) === 0 ? "0" : text.replace(/^0\./, ".");
 }
 
-/** Guess mode's label: points lost against the best move, one decimal without a leading zero (".3"), whole points from 10 up; "0" when it rounds to nothing. */
-export function lossLabel(cost: number): string {
-  const text = cost.toFixed(cost >= 9.95 ? 0 : 1);
-  return Number(text) === 0 ? "0" : text.replace(/^0\./, ".");
+/** ogatak "Delta": this move's score minus the best move's, for the side to move ("-.3", "+1.2"); "0" when it rounds to nothing. */
+export function deltaLabel(bestLead: number, lead: number, side: "B" | "W"): string {
+  const val = side === "B" ? lead - bestLead : bestLead - lead;
+  const size = pointsLabel(Math.abs(val));
+  return size === "0" ? "0" : (val < 0 ? "-" : "+") + size;
 }
 
 /** ogatak "Visits". */

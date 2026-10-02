@@ -9,7 +9,7 @@ export interface BoardMark {
   lines: string[];
 }
 
-/** A move already on the board, rated like a candidate, in a badge at a corner of its stone. */
+/** A move already on the board, rated like a candidate, in a badge centred on its stone. */
 export interface PlayedMark {
   vertex: [number, number];
   fill: string;
@@ -25,8 +25,8 @@ interface GobanProps {
   played?: PlayedMark | null;
   /**
    * Guess mode's style: each candidate is a badge in its colour centred on
-   * its point, and the played move gets a larger badge at a corner of its
-   * stone. Otherwise candidates are stone-sized circles holding their lines.
+   * its point, and the played move gets a larger badge centred on its stone.
+   * Otherwise candidates are stone-sized circles holding their lines.
    */
   badges?: boolean;
   /** Badge sizes as multiples of the default: the candidates', and the played move's. */
@@ -60,13 +60,11 @@ const STONE = 0.48;
 /**
  * Badges: the text is BADGE_FONT of a square tall and never under
  * BADGE_MIN_PX, times the viewer's size setting. The played move's badge
- * sits PLAYED_INSET of a square out from the stone's centre and is
- * PLAYED_SCALE times larger with a heavier edge. The visits line, when
- * shown, is VISITS_FONT of the first line's size.
+ * is centred on its stone, PLAYED_SCALE times larger, with a heavier edge.
+ * The visits line, when shown, is VISITS_FONT of the first line's size.
  */
 const BADGE_FONT = 0.4;
 const BADGE_MIN_PX = 12;
-const PLAYED_INSET = 0.15;
 const PLAYED_SCALE = 1.15;
 const VISITS_FONT = 0.8;
 /** How far a candidate's badge may be pushed off its point's centre, as a share of its width. */
@@ -86,19 +84,6 @@ interface Rect {
   y: number;
   w: number;
   h: number;
-}
-
-/** Overlap area; edges that touch or cross by a pixel don't count. */
-function overlapArea(a: Rect, b: Rect): number {
-  const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) - 1;
-  const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) - 1;
-  return w > 0 && h > 0 ? w * h : 0;
-}
-
-function coversCircle(r: Rect, cx: number, cy: number, radius: number): boolean {
-  const nx = Math.max(r.x, Math.min(cx, r.x + r.w));
-  const ny = Math.max(r.y, Math.min(cy, r.y + r.h));
-  return (nx - cx) ** 2 + (ny - cy) ** 2 < radius ** 2;
 }
 
 function hoshiPoints(size: number): [number, number][] {
@@ -310,6 +295,21 @@ export function Goban({
         });
       };
 
+      // The played move's badge is a rounded rectangle centred on its stone,
+      // like an option's on its point. Odd sides put its centre on the middle
+      // of the gridline pixels and its 2px edge on whole pixels.
+      const odd = (n: number) => 2 * Math.floor(n / 2) + 1;
+      const playedShape = (stone: PlayedMark) => {
+        const font = Math.max(6, Math.round(base * PLAYED_SCALE * playedScale));
+        const { width, h: textH, sub, offsets } = measure(stone.lines, font);
+        const w = odd(Math.max(Math.round(font * 1.25), Math.ceil(width + font * 0.5)));
+        const h = odd(Math.round(textH));
+        const x = Math.max(0, Math.min(px - w, gridPixel(stone.vertex[0]) - (w - 1) / 2));
+        const y = Math.max(0, Math.min(px - h, gridPixel(stone.vertex[1]) - (h - 1) / 2));
+        return { x, y, w, h, font, sub, offsets };
+      };
+      const playedBadge = playedStone && playedShape(playedStone);
+
       // A candidate's badge is a circle whose 1px edge stays INK_GAP clear of
       // every line's ink, and never narrower than a one-line badge is tall
       // (r is the radius inside that edge). The rim goes under every badge,
@@ -330,9 +330,10 @@ export function Goban({
 
       // A candidate's badge is centred on its point. Badges that would
       // overlap each other are pushed apart along the line between their
-      // points, and any reaching into the last-move mark are pushed back off
-      // it; never by more than BADGE_NUDGE of their size, so each still sits
-      // on its own point. The board's edge holds them in, rims and all.
+      // points, and any reaching into the last-move mark or the played move's
+      // badge are pushed back off them; never by more than BADGE_NUDGE of
+      // their size, so each still sits on its own point. The board's edge
+      // holds them in, rims and all.
       const cands = shown.map((m) => {
         const { w, h, sub, offsets } = optionShape(m.lines);
         // Centred on the middle of the point's gridline pixels.
@@ -347,7 +348,7 @@ export function Goban({
         c.x = Math.max(rim, Math.min(px - rim - c.w, Math.max(c.homeX - dx, Math.min(c.homeX + dx, x))));
         c.y = Math.max(rim, Math.min(px - rim - c.h, Math.max(c.homeY - dy, Math.min(c.homeY + dy, y))));
       };
-      // Moves `c` away from `other` along one axis, the two sharing the move; with no `other`, off the last-move mark, which stays.
+      // Moves `c` away from `other` along one axis, the two sharing the move; with no `other`, off the last-move mark or the played move's badge, which stay.
       const separate = (c: Cand, other: Cand | null, towardX: number, towardY: number, ox: number, oy: number) => {
         const share = other ? 0.5 : 1;
         if (towardY === 0 || (towardX !== 0 && ox <= oy)) {
@@ -388,6 +389,23 @@ export function Goban({
         if (dx * dx + dy * dy >= reach * reach) return [0, 0];
         return [Math.sqrt(reach * reach - dy * dy) - dx, Math.sqrt(reach * reach - dx * dx) - dy];
       };
+      // How far a badge's circle reaches into the played move's badge, as the
+      // move along x alone or along y alone, the way (sx, sy) points, that
+      // would take it out; an axis it may not move along counts as endless.
+      const intoBadge = (c: Cand, s: Rect, sx: number, sy: number) => {
+        const r = c.w / 2 - 1;
+        const cx = c.x + c.w / 2;
+        const cy = c.y + c.h / 2;
+        const outX = Math.max(s.x - cx, 0, cx - s.x - s.w);
+        const outY = Math.max(s.y - cy, 0, cy - s.y - s.h);
+        if (outX * outX + outY * outY >= r * r) return [0, 0];
+        const halfX = Math.sqrt(r * r - outY * outY);
+        const halfY = Math.sqrt(r * r - outX * outX);
+        return [
+          sx > 0 ? s.x + s.w + halfX - cx : sx < 0 ? cx + halfX - s.x : Infinity,
+          sy > 0 ? s.y + s.h + halfY - cy : sy < 0 ? cy + halfY - s.y : Infinity,
+        ];
+      };
       const positions = () => cands.map((c) => `${c.x},${c.y}`).join(" ");
       for (let pass = 0; pass < 12; pass++) {
         const before = positions();
@@ -400,15 +418,17 @@ export function Goban({
               separate(a, b, Math.sign(b.m.vertex[0] - a.m.vertex[0]), Math.sign(b.m.vertex[1] - a.m.vertex[1]), ox, oy);
             }
           }
-          if (markBox && playedStone) {
+          if (markBox && playedBadge && playedStone) {
+            const sx = Math.sign(a.m.vertex[0] - playedStone.vertex[0]);
+            const sy = Math.sign(a.m.vertex[1] - playedStone.vertex[1]);
             const [ox, oy] = overlap(a, markBox);
             const past = pastMark(a, markBox);
             if (ox > 0 && oy > 0 && past > 0) {
-              const sx = Math.sign(a.m.vertex[0] - playedStone.vertex[0]);
-              const sy = Math.sign(a.m.vertex[1] - playedStone.vertex[1]);
               // Moving left or up also clears the diagonal, often before the box.
               separate(a, null, -sx, -sy, sx < 0 ? Math.min(ox, past) : ox, sy < 0 ? Math.min(oy, past) : oy);
             }
+            const [bx, by] = intoBadge(a, playedBadge, sx, sy);
+            if (bx > 0 && by > 0) separate(a, null, -sx, -sy, bx, by);
           }
         }
         if (positions() === before) break;
@@ -436,47 +456,17 @@ export function Goban({
         writeLines(c.m.lines, cx, cy, markFont, c.sub, c.offsets);
       }
 
-      // The played stone is unmistakable, so its badge may take whichever
-      // corner of the stone hides least of the candidates' badges and points.
-      // It is drawn last, above them.
-      if (playedStone) {
-        const font = Math.max(6, Math.round(base * PLAYED_SCALE * playedScale));
-        const { width, h: textH, sub, offsets } = measure(playedStone.lines, font);
-        const w = Math.max(Math.round(font * 1.25), Math.ceil(width + font * 0.5));
-        const h = Math.round(textH);
-        const r = Math.round(font * 0.375);
-        const d = Math.round(PLAYED_INSET * square);
-        const gx = gridPixel(playedStone.vertex[0]);
-        const gy = gridPixel(playedStone.vertex[1]);
-        const corners = [
-          { x: gx + d, y: gy + d, w, h, radii: [0, r, r, r] },
-          { x: gx + d, y: gy + 1 - d - h, w, h, radii: [r, r, r, 0] },
-          { x: gx + 1 - d - w, y: gy + d, w, h, radii: [r, 0, r, r] },
-          { x: gx + 1 - d - w, y: gy + 1 - d - h, w, h, radii: [r, r, 0, r] },
-        ].filter((c) => c.x >= 0 && c.y >= 0 && c.x + w <= px && c.y + h <= px);
-        let best = corners[0];
-        let least = Infinity;
-        for (const c of corners) {
-          let cost = 0;
-          for (const o of cands) cost += overlapArea(c, o) / (h * h);
-          for (const m of shown) {
-            if (coversCircle(c, centre(m.vertex[0]), centre(m.vertex[1]), 0.12 * square)) cost += 1;
-          }
-          if (cost < least) {
-            least = cost;
-            best = c;
-          }
-        }
-        if (best) {
-          ctx.beginPath();
-          ctx.roundRect(best.x + 1, best.y + 1, w - 2, h - 2, best.radii);
-          ctx.fillStyle = playedStone.fill;
-          ctx.fill();
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = side;
-          ctx.stroke();
-          writeLines(playedStone.lines, best.x + w / 2, best.y + h / 2, font, sub, offsets);
-        }
+      // The played move's badge is drawn last, above them all.
+      if (playedBadge && playedStone) {
+        const { x, y, w, h, font, sub, offsets } = playedBadge;
+        ctx.beginPath();
+        ctx.roundRect(x + 1, y + 1, w - 2, h - 2, Math.round(font * 0.375));
+        ctx.fillStyle = playedStone.fill;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = side;
+        ctx.stroke();
+        writeLines(playedStone.lines, x + w / 2, y + h / 2, font, sub, offsets);
       }
     };
 

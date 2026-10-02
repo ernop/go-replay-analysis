@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { pointsLabel } from "@/lib/review";
 import { useStoredString } from "@/lib/use-stored";
 
 // Port of ogatak-clear's MOVE QUALITY and GAME STATUS charts (move_report.js:
@@ -59,7 +60,7 @@ export function ReviewCharts({ scoreLead, movers, current, onSeek }: ChartsProps
             const d = clamp(Math.ceil(map.domainStart + (x - map.x0) / map.slotW), map.start, map.end);
             const a = scoreLead[d - 1];
             const b = scoreLead[d];
-            return a == null || b == null ? `#${d}: move quality unavailable` : `#${d}: ${Math.abs(a - b).toFixed(2)} points`;
+            return a == null || b == null ? `#${d}: move quality unavailable` : `#${d}: ${pointsLabel(Math.abs(a - b))} points`;
           }}
           onSeek={onSeek}
         />
@@ -71,7 +72,9 @@ export function ReviewCharts({ scoreLead, movers, current, onSeek }: ChartsProps
           describe={(map, x) => {
             const d = clamp(Math.round(map.domainStart + (x - map.x0) / map.slotW), map.domainStart, map.end);
             const lead = scoreLead[d];
-            return lead == null ? `#${d}` : `#${d}: ${lead >= 0 ? "B" : "W"}+${Math.abs(lead).toFixed(2)}`;
+            if (lead == null) return `#${d}`;
+            const size = pointsLabel(Math.abs(lead));
+            return size === "0" ? `#${d}: 0` : `#${d}: ${lead > 0 ? "B" : "W"}+${size}`;
           }}
           onSeek={onSeek}
         />
