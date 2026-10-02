@@ -139,6 +139,13 @@ this repo's docs, not in an agent's private memory.
   template is `.env.example`. Only the server machine needs it: the PC's
   was copied from tvnik's on 2026-09-26, and its DGS login was checked from
   the PC. The dev server reads it at startup, so restart after editing.
+- tvnik's test server runs in the background as the systemd user service
+  `go-replay-tvnik` (`next dev` on :4517, nvm's Node 22; unit in
+  `deploy/systemd/go-replay-tvnik.service`, installed in
+  `~/.config/systemd/user/`, enabled, linger on). Restart with
+  `systemctl --user restart go-replay-tvnik`; logs with
+  `journalctl --user -u go-replay-tvnik`. Do not start a second dev server
+  on 4517 there from an agent session.
 - Do not kill the dev server with `pkill -f "next dev"` from a shell whose own
   command line contains that string; it kills the calling shell too.
 
