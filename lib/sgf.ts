@@ -1,4 +1,4 @@
-import { parse, type SgfNode } from "@sabaki/sgf";
+import { parse, stringify, type SgfNode } from "@sabaki/sgf";
 import type { ParsedMove, SetupStone } from "./types";
 
 export interface ParsedGame {
@@ -102,6 +102,30 @@ function makeClock(mainTime: number | null, ot: Overtime) {
   };
 }
 
+/**
+ * This app's own move property: the seconds the mover took. SGF's BL/WL give
+ * the time left instead, which OGS leaves out of its SGFs while its API has
+ * each move's time (see `withGameTimes`).
+ */
+const TIME_USED = "TIMEUSED";
+
+/**
+ * The SGF with its date set to `datePlayed` (unchanged when empty) and, given
+ * `seconds`, the i-th mainline move's time used set to `seconds[i]`.
+ */
+export function withGameTimes(content: string, datePlayed: string, seconds: number[] | null): string {
+  const roots = parse(content);
+  if (roots.length === 0) return content;
+  if (datePlayed) roots[0].data.DT = [datePlayed];
+  let i = 0;
+  for (let node: SgfNode | undefined = roots[0]; node && seconds; node = node.children[0]) {
+    if (node.data.B === undefined && node.data.W === undefined) continue;
+    if (i < seconds.length) node.data[TIME_USED] = [String(seconds[i])];
+    i++;
+  }
+  return stringify(roots);
+}
+
 export function parseResult(re: string): "B" | "W" | "" {
   const m = /^(B|W)\+/i.exec(re.trim());
   if (m) return m[1].toUpperCase() as "B" | "W";
@@ -146,6 +170,8 @@ export function parseSgf(content: string): ParsedGame {
         const seconds = clock(color, left, Number.isFinite(periods) ? periods : null);
         if (seconds !== null) move.seconds = Math.round(seconds * 10) / 10;
       }
+      const used = parseFloat(prop(node, TIME_USED));
+      if (Number.isFinite(used) && used >= 0) move.seconds = Math.round(used * 10) / 10;
       moves.push(move);
     }
     node = node.children[0];

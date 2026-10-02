@@ -128,10 +128,10 @@ export function deltaLabel(bestLead: number, lead: number, side: "B" | "W", digi
   return Number(size) === 0 ? "0" : (val < 0 ? "-" : "+") + size;
 }
 
-/** Guess mode's label: points lost against the best move, one decimal, whole points from 10 up; "0" when it rounds to nothing. */
+/** Guess mode's label: points lost against the best move, one decimal without a leading zero (".3"), whole points from 10 up; "0" when it rounds to nothing. */
 export function lossLabel(cost: number): string {
   const text = cost.toFixed(cost >= 9.95 ? 0 : 1);
-  return Number(text) === 0 ? "0" : text;
+  return Number(text) === 0 ? "0" : text.replace(/^0\./, ".");
 }
 
 /** ogatak "Visits". */

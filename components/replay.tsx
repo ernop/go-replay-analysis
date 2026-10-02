@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import GoBoard from "@sabaki/go-board";
-import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
-import { Goban, type BoardMark, type PlayedMark } from "@/components/goban";
-import { NotchedSlider } from "@/components/notched-slider";
+import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Info, Minus, Pause, Play, Plus } from "lucide-react";
+import { Popover } from "radix-ui";
+import { Goban, SIDE_COLOUR, type BoardMark, type PlayedMark } from "@/components/goban";
 import { ReviewCharts } from "@/components/review-charts";
 import { TagEditor } from "@/components/tag-editor";
-import { handleOf, playedOn } from "@/lib/library";
+import { finishedOn, handleOf, playedOn } from "@/lib/library";
 import { saveProgress, withViewerProgress } from "@/lib/progress";
 import {
   costColour,
@@ -63,14 +63,15 @@ const DEFAULT_REVEAL = "3";
 /** reveal-in in globals.css: a 200ms wait, then a 250ms fade. */
 const REVEAL_FADE_IN_MS = 450;
 
-/** Guess mode's badge size sliders, in percent of the default size. */
-const BADGE_SIZE = { min: 50, max: 200, step: 10, numbered: [100, 150] };
+/** Guess mode's badge sizes, in percent of the default; the middle one is the default. */
+const BADGE_SIZES = [50, 70, 100, 140, 200];
 
+/** The nearest size, so one saved by the old 50–200% slider still counts. */
 function parseBadgeSize(setting: string): number {
   const n = Number(setting);
-  return Number.isInteger(n) && n >= BADGE_SIZE.min && n <= BADGE_SIZE.max && (n - BADGE_SIZE.min) % BADGE_SIZE.step === 0
-    ? n
-    : 100;
+  if (!(n > 0)) return 100;
+  const off = (s: number) => Math.abs(Math.log(s / n));
+  return BADGE_SIZES.reduce((best, s) => (off(s) < off(best) ? s : best));
 }
 
 /** A shown rating: `idx` is the position after the rated move. */
@@ -158,6 +159,9 @@ export function Replay({ id }: { id: number }) {
   const [markSizeSetting, setMarkSizeSetting] = useStoredString("replay.otherBadges", "100");
   const [visitsSetting, setVisitsSetting] = useStoredString("replay.badgeVisits", "0");
   const [reveal, setReveal] = useState<Reveal | null>(null);
+  // Guess mode's "show analysis" button: while it is pressed, each move's
+  // analysis stays up until the next move, whatever the setting beside it.
+  const [forceAnalysis, setForceAnalysis] = useState(false);
   const [analysis, setAnalysis] = useState<GameAnalysis | null>(null);
   const [analysisState, setAnalysisState] = useState("none");
   const [analysisProgress, setAnalysisProgress] = useState(0);
@@ -166,7 +170,8 @@ export function Replay({ id }: { id: number }) {
   const size = detail?.game.boardSize ?? 19;
   const mode: BoardMode = MODES.includes(modeSetting as BoardMode) ? (modeSetting as BoardMode) : "analysis";
   const revealChoice = parseReveal(revealSetting);
-  const revealMs = REVEALS.includes(Number(revealChoice)) ? Number(revealChoice) * 1000 : null;
+  const revealRule = forceAnalysis ? "next" : revealChoice;
+  const revealMs = REVEALS.includes(Number(revealRule)) ? Number(revealRule) * 1000 : null;
   const playedSize = parseBadgeSize(playedSizeSetting);
   const markSize = parseBadgeSize(markSizeSetting);
   const showVisits = visitsSetting === "1";
@@ -278,7 +283,7 @@ export function Replay({ id }: { id: number }) {
   }, [mode, lastPlayed, analysis, idx, size]);
   const shownReveal = rating && reveal?.idx === idx ? reveal : null;
   // "hold till accepted": autoplay waits while a move's analysis shows.
-  const holding = revealChoice === "accept" && !!shownReveal?.on;
+  const holding = revealRule === "accept" && !!shownReveal?.on;
 
   // One timer per move, so the countdown bar and the move stay in step. A
   // held analysis stops the clock; hiding it starts a full interval.
@@ -314,6 +319,12 @@ export function Replay({ id }: { id: number }) {
       r && r.idx === idx && r.on ? { ...r } : { idx, serial: (r?.serial ?? 0) + 1, on: true, landed: false }
     );
   }, [idx]);
+
+  // Pressing it shows the current move's analysis at once; letting go hands it back to the setting's timing.
+  const toggleForceAnalysis = useCallback(() => {
+    if (!forceAnalysis) previewBadges();
+    setForceAnalysis(!forceAnalysis);
+  }, [forceAnalysis, previewBadges]);
 
   const changeMode = useCallback(
     (next: string) => {
@@ -555,10 +566,15 @@ export function Replay({ id }: { id: number }) {
                     <span key={shownReveal.serial} className={`flex items-baseline gap-2 whitespace-nowrap ${revealClass}`}>
                       <span className="fs-caption">{lastPlayed.vertex ? "lost" : "pass lost"}</span>
                       <span
-                        className="fs-emph rounded-sm px-1.5 font-bold tabular-nums text-black"
-                        style={{ background: costColour(rating.playedCost, rating.scale) }}
+                        className="fs-emph rounded-sm border-2 px-1.5 font-bold tabular-nums text-black"
+                        style={{
+                          background: costColour(rating.playedCost, rating.scale),
+                          borderColor: SIDE_COLOUR[lastPlayed.color],
+                          // A black border would vanish into the panel without a light line round it.
+                          boxShadow: "0 0 0 1px #9a9a9a",
+                        }}
                       >
-                        {rating.playedCost.toFixed(2)}
+                        {lossLabel(rating.playedCost)}
                       </span>
                     </span>
                   )}
@@ -608,64 +624,38 @@ export function Replay({ id }: { id: number }) {
               </select>
             </label>
             {mode === "guess" && (
-              <label
-                className="flex items-center gap-2"
-                title="How long a move's analysis shows once it is on the board, whether you stepped forward or back. 'hold till accepted' keeps it, and holds autoplay, until you tap the board. Tap the board (or press Enter) any time to show or hide it."
-              >
-                show analysis
-                <select value={revealChoice} onChange={(e) => setRevealSetting(e.target.value)} className="field fs-ui">
-                  {REVEALS.map((s) => (
-                    <option key={s} value={String(s)}>
-                      {s} s
-                    </option>
-                  ))}
-                  <option value="next">until next move</option>
-                  <option value="accept">hold till accepted</option>
-                </select>
-              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-pressed={forceAnalysis}
+                  onClick={toggleForceAnalysis}
+                  title="Pressed: each move's analysis shows now and stays up until the next move is played, whatever the setting beside it says. Press again to go back to that setting."
+                  className={`h-8 touch-manipulation rounded-sm border-2 px-2 hover:bg-[#222222] ${forceAnalysis ? "border-gold" : "border-[#777777]"}`}
+                >
+                  show analysis
+                </button>
+                {forceAnalysis ? (
+                  <span className="fs-ui font-bold">until next move</span>
+                ) : (
+                  <select
+                    value={revealChoice}
+                    onChange={(e) => setRevealSetting(e.target.value)}
+                    className="field fs-ui"
+                    aria-label="How long analysis shows"
+                    title="How long a move's analysis shows once it is on the board, whether you stepped forward or back. 'hold till accepted' keeps it, and holds autoplay, until you tap the board. Tap the board (or press Enter) any time to show or hide it."
+                  >
+                    {REVEALS.map((s) => (
+                      <option key={s} value={String(s)}>
+                        {s} s
+                      </option>
+                    ))}
+                    <option value="next">until next move</option>
+                    <option value="accept">hold till accepted</option>
+                  </select>
+                )}
+              </div>
             )}
           </div>
-          {mode === "guess" && (
-            <div className="grid gap-x-6 gap-y-1 pt-1 @min-[640px]:grid-cols-2">
-              <NotchedSlider
-                label="played move size"
-                title="Size of the played move's badge, in percent of the default."
-                value={playedSize}
-                {...BADGE_SIZE}
-                unit="%"
-                onChange={(v) => {
-                  setPlayedSizeSetting(String(v));
-                  previewBadges();
-                }}
-              />
-              <NotchedSlider
-                label="other moves size"
-                title="Size of the other moves' badges, in percent of the default."
-                value={markSize}
-                {...BADGE_SIZE}
-                unit="%"
-                onChange={(v) => {
-                  setMarkSizeSetting(String(v));
-                  previewBadges();
-                }}
-              />
-              <label
-                className="fs-caption flex items-center gap-2"
-                title="Also show, under each badge's points, how many visits the engine spent on that move."
-              >
-                <input
-                  type="checkbox"
-                  className="size-4 accent-gold"
-                  checked={showVisits}
-                  onChange={(e) => {
-                    setVisitsSetting(e.target.checked ? "1" : "0");
-                    previewBadges();
-                  }}
-                />
-                show visits too
-              </label>
-            </div>
-          )}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -746,6 +736,87 @@ export function Replay({ id }: { id: number }) {
             )}
           </div>
         </div>
+
+        {mode === "guess" && (
+          <div className="fs-caption flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#333333] pt-3">
+            <SizeStepper
+              label="played"
+              title="Size of the played move's badge, in percent of the default."
+              value={playedSize}
+              onChange={(v) => {
+                setPlayedSizeSetting(String(v));
+                previewBadges();
+              }}
+            />
+            <SizeStepper
+              label="others"
+              title="Size of the other moves' badges, in percent of the default."
+              value={markSize}
+              onChange={(v) => {
+                setMarkSizeSetting(String(v));
+                previewBadges();
+              }}
+            />
+            <label
+              className="flex items-center gap-2"
+              title="Also show, under each badge's points, how many visits the engine spent on that move."
+            >
+              <input
+                type="checkbox"
+                className="size-4 accent-gold"
+                checked={showVisits}
+                onChange={(e) => {
+                  setVisitsSetting(e.target.checked ? "1" : "0");
+                  previewBadges();
+                }}
+              />
+              visits
+            </label>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** One of guess mode's badge sizes, stepped through BADGE_SIZES; a step past either end has no button. */
+function SizeStepper({
+  label,
+  title,
+  value,
+  onChange,
+}: {
+  label: string;
+  title: string;
+  value: number;
+  onChange: (size: number) => void;
+}) {
+  const at = BADGE_SIZES.indexOf(value);
+  const stepClass =
+    "flex h-8 w-7 touch-manipulation items-center justify-center hover:bg-[#222222] disabled:invisible";
+  return (
+    <div className="flex items-center gap-1" title={title}>
+      <span>{label}</span>
+      <div className="flex items-center rounded-sm border border-[#777777]">
+        <button
+          type="button"
+          aria-label={`${label} smaller`}
+          disabled={at <= 0}
+          onClick={() => onChange(BADGE_SIZES[at - 1])}
+          className={stepClass}
+        >
+          <Minus size={16} />
+        </button>
+        <span className="fs-ui min-w-[2.75rem] text-center font-bold tabular-nums">{value}%</span>
+        <button
+          type="button"
+          aria-label={`${label} larger`}
+          disabled={at >= BADGE_SIZES.length - 1}
+          onClick={() => onChange(BADGE_SIZES[at + 1])}
+          className={stepClass}
+        >
+          <Plus size={16} />
+        </button>
       </div>
     </div>
   );
@@ -832,19 +903,90 @@ function MiniStone({ colour }: { colour: "B" | "W" }) {
   );
 }
 
-/** Handicap, komi, date and captures: small, beside the players on a wide panel. */
+/** Handicap and date, small, beside the players on a wide panel; komi and captures behind "info". */
 function GameFacts({ game, pos }: { game: GameSummary; pos: Position }) {
   return (
-    <div className="fs-caption flex flex-wrap items-center gap-x-4 gap-y-0.5 @min-[720px]:flex-col @min-[720px]:items-end">
+    <div className="fs-caption flex flex-wrap items-center gap-x-4 gap-y-1 @min-[720px]:flex-col @min-[720px]:items-end">
       {game.handicap > 0 && <span>H{game.handicap}</span>}
-      {game.komi !== null && <span>komi {game.komi}</span>}
       <span>{playedOn(game)}</span>
-      <span className="flex items-center gap-1.5 whitespace-nowrap" title="Stones each side has captured">
-        captures <MiniStone colour="W" />
-        <span className="tabular-nums">{pos.capturedByWhite}</span>
-        <MiniStone colour="B" />
-        <span className="tabular-nums">{pos.capturedByBlack}</span>
-      </span>
+      <GameInfo game={game} pos={pos} />
     </div>
+  );
+}
+
+/**
+ * Komi, captures and the dates, in a card that shows while the mouse is over
+ * "info". A click or tap keeps it open until the next one, or a click
+ * elsewhere.
+ */
+function GameInfo({ game, pos }: { game: GameSummary; pos: Position }) {
+  const [hover, setHover] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const finished = finishedOn(game);
+  return (
+    <Popover.Root
+      open={hover || pinned}
+      onOpenChange={(open) => {
+        if (open) return;
+        setPinned(false);
+        setHover(false);
+      }}
+    >
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          aria-label="Komi, captures and dates"
+          className="flex touch-manipulation items-center gap-1 rounded-sm border border-[#777777] px-2 py-0.5 hover:bg-[#222222]"
+          onPointerEnter={(e) => {
+            if (e.pointerType === "mouse") setHover(true);
+          }}
+          onPointerLeave={(e) => {
+            if (e.pointerType === "mouse") setHover(false);
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            if (pinned) setHover(false);
+            setPinned(!pinned);
+          }}
+        >
+          <Info size={15} />
+          info
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="end"
+          sideOffset={6}
+          collisionPadding={8}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="fs-caption z-50 grid grid-cols-[auto_auto] items-baseline gap-x-4 gap-y-1.5 rounded-sm border border-[#777777] bg-[#161616] px-3 py-2 text-white"
+        >
+          <span>komi</span>
+          <span className="fs-ui font-bold tabular-nums">{game.komi ?? "none"}</span>
+          <span>captures</span>
+          <span className="fs-ui flex items-center gap-1.5 font-bold tabular-nums">
+            <MiniStone colour="W" />
+            {pos.capturedByWhite}
+            <MiniStone colour="B" />
+            {pos.capturedByBlack}
+          </span>
+          <span>{finished ? "started" : "played"}</span>
+          <span className="fs-ui font-bold tabular-nums">{playedOn(game)}</span>
+          {finished && (
+            <>
+              <span>finished</span>
+              <span className="fs-ui whitespace-nowrap font-bold tabular-nums">
+                {finished.date}{" "}
+                <span className="fs-caption font-normal">
+                  ({finished.days} {finished.days === 1 ? "day" : "days"})
+                </span>
+              </span>
+            </>
+          )}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

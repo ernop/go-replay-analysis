@@ -103,8 +103,12 @@ direction").
   case-insensitive username match against black/white player names (across all
   servers — usernames are assumed distinctive enough; revisit if collisions appear).
 - **Automatic game fetching** is implemented for:
-  - **OGS** (online-go.com REST API: player search → recent finished games → SGF),
-  - **KGS** (scrape of the monthly `gameArchives.jsp` pages, current + previous month),
+  - **OGS** (online-go.com REST API: player search → recent finished games → SGF,
+    plus each game's API record, whose dates and move times are written into the
+    SGF; see "What the servers record"),
+  - **KGS** (scrape of the monthly `gameArchives.jsp` pages, current + previous month;
+    since 2026-09 those pages ask for a login, so it finds nothing until it logs in,
+    see "What the servers record"),
   - **DGS** (Dragon Go Server "quick suite": `quick_do.php` JSON API for user lookup
     and finished-game lists, public `sgf.php` for downloads). DGS removed all
     anonymous list access, so fetching requires the owner's own DGS login in
@@ -128,6 +132,59 @@ direction").
   registered username appearing as `(handle)` inside the player name.
 - Fetches are capped (~30 games) and throttled to be polite; games are deduped by a
   per-source key (`ogs:<id>`, `kgs:<path>`, `upload:<sha1>`, `seed:<file>`).
+
+## What the servers record (checked 2026-09-30)
+
+The owner asked: "do we know the start date and also end date? or just one
+date per game? do any of these servers have the time the player thought? ...
+can we also somehow find games from like kgs or other sources?"
+
+- **Dates.** DGS games are correspondence games, and DGS writes the date as
+  "start,end": all 572 DGS games in the library have both, a median 34 days
+  apart and at most 304 (2 ended the day they began). Four of the 9 seed
+  games list several dates in SGF's short form ("1855-04-22,24,05-05"). OGS
+  SGFs carry only the start date, though OGS's game API has exact `started`
+  and `ended` times. A KGS game is one sitting, with one date. The replayer
+  shows the first date beside the players, and the info card adds the last
+  one and the days between (`finishedOn` in `lib/library.ts`).
+- **Thinking time.** DGS records none, and a DGS move takes hours or days
+  anyway. OGS keeps each move's time in its game API (`gamedata.moves[i][2]`,
+  milliseconds) but not in its SGFs. KGS writes the clock after every move
+  into its SGFs (`WL[294.398]`), which is what real-time pacing reads.
+- **The OGS fetcher adds what OGS's SGF lacks (decided 2026-09-30, the
+  owner's choice of the sources above).** For each game it downloads the SGF
+  and the game's API record (`/api/v1/games/<id>`), and before storing the
+  SGF (`ogsRecord` in `lib/fetchers/ogs.ts`):
+  - sets DT to "start,end" when the game ended on a later day than it began,
+    as DGS writes it, in UTC days as OGS's own DT is;
+  - gives every move its time in `TIMEUSED[6.7]`, seconds with one decimal.
+    TIMEUSED is this app's own SGF property, because SGF's standard BL/WL
+    hold the time left, and turning OGS's times into those would mean
+    replaying each clock system. `lib/sgf.ts` reads it, ahead of BL/WL.
+  - adds no times to correspondence games (`time_control.speed`, or for
+    older records a game longer than a day), where a move's time is mostly
+    the player being away, nor when the API's moves and the SGF's differ.
+    They are compared point by point. With free handicap placement the API
+    lists the handicap stones as Black's first moves, which the SGF has as
+    setup stones, so those are skipped first.
+  Checked 2026-09-30 on five recent OGS games (fixed handicap 9, free
+  handicap 18, "handicap 1", even, and one correspondence game): moves,
+  setup stones and results unchanged, times on every live move adding up to
+  the API's, and the correspondence game dated "2026-03-22,2026-06-15" with
+  no times. A full fetch on a scratch copy of the app (an OGS player's last
+  30 games: 27 added with times, 3 cancelled games without moves skipped)
+  gave real ×1 pacing that waited 6.7 s before a move its player took 6.7 s
+  over.
+- **More games.** KGS's game files are still public, without a login:
+  `https://files.gokgs.com/games/<year>/<month>/<day>/<white>-<black>.sgf`,
+  clock included (the 2019-04-27 zxcs–Abduct game: 163 clock values). Only
+  the list of a player's games, `gameArchives.jsp`, now needs a login, so
+  the KGS fetcher needs the owner's KGS account in `.env.local` and the
+  players' KGS names. u-go.net offers monthly zips of KGS games with a 7d or
+  stronger player, or two 6d players, and a separate 4d+ archive, but its
+  copies have the clocks stripped (the same zxcs–Abduct game: none). The
+  owner's old handles `kouchi` and `kochi` are not OGS accounts. IGS, Fox
+  and Tygem were not looked into.
 
 ## Analysis pipeline
 
@@ -241,7 +298,18 @@ a couple of pixels thick on each one, of the color of the move that would
 have virtually been played there if the user had chosen it": "when we're
 evaluating Black's last move, the actual move will be the move ... with its
 special type of indicator, and then the candidate moves will be this new
-thing".
+thing". Then: "for played/other move size just have 5 settings, and a + —
+pair of buttons. midle and default value is the current "100". they should
+be side by side, at the very bottom below the charts. so should the visit
+boolean toggelr. ... move komi into a mouseover or clickable info thing,
+also capture count", and "please make the blue triangle smaller". Then:
+"make the eval bubvbles basically circular. for values like "0.3" print out
+just .3 please and also for the main page inline display of the eval, that
+should use the same dec point viz as the one on the baord. ofc. so just 1
+decimal point tehre always. the border of both types of eval info things
+should match teh color fo thestone they're evaluating. add a quick override
+toggler "show analysis" which forces analysis to show til the next move is
+played, at which point the new one will be shown."
 
 What these say about what the owner wants, and so how to decide future
 questions:
@@ -253,9 +321,11 @@ questions:
 - **Colour says who; words only say names and values.** Sides are shown as the
   board shows them, in black and white, never with the words "Black" and
   "White". A player is their server handle, not their real name.
-- **Quiet until it matters.** Komi, date and captures are seldom needed, so
-  they are small and to the side. The result matters once, at the end, and is
-  otherwise absent; even a reveal button invites the spoiler.
+- **Quiet until it matters.** The date is small and to the side; komi and
+  captures, needed even less, wait behind an "info" button. The result
+  matters once, at the end, and is otherwise absent; even a reveal button
+  invites the spoiler. Settings changed once in a while sit at the very
+  bottom, after everything that is read.
 - **One plain font; hierarchy from size and weight.** No monospace, no
   colour-coded labels.
 - **Guess first, then judge, at the viewer's pace and in both directions.**
@@ -264,15 +334,19 @@ questions:
   instead of timing out, so autoplay never outruns thinking.
 - **Numbers must be trustworthy, and few.** An option backed by 40 visits is
   noise. On the board, guess mode says only how much worse each option was.
+  A value reads the same wherever it appears: the points a move lost have
+  one decimal and no leading zero (".3"), on the board and beside the move
+  counter alike.
 - **A calm colour language.** Good is green, bad a soft red, and nothing in
   between looks muddy. Red is for bad moves only: the move just played is
   marked in light blue, a colour nothing else on the board uses.
 - **One mark per move, on the move.** Each rated move shows its colour once,
   in the badge that holds its number. An option's badge is centred on its own
-  point, so its place alone says which point it marks, and is round with a
-  rim in the mover's colour, like the stone that could have gone there; the
+  point, so its place alone says which point it marks, and is a circle with
+  a rim in the mover's colour, like the stone that could have gone there; the
   played move's is a rectangle at a corner of its stone, which cannot be
-  mistaken. A mark that
+  mistaken, edged in the same colour. Every rating's border, the "lost"
+  readout's too, is the colour of the stone it rates. A mark that
   wanders to wherever there is room, or a second patch of the same colour,
   reads as clutter.
 - **Readable at a glance on a phone, before tidy.** A number on the board
@@ -280,8 +354,10 @@ questions:
   19 px phone squares were rejected the same day; guess mode's badges keep
   12 px bold text however small the board is, and on a phone reach a little
   past their square to do it.
-- **The viewer tunes what he reads.** How big the marks are, and whether
-  visits show, are his settings, changed with the board in view.
+- **The viewer tunes what he reads, in a few coarse steps.** How big the
+  marks are, and whether visits show, are his settings. A size is one of
+  five, stepped with − and +, not a fine slider: the steps that matter are
+  "smaller" and "bigger".
 - **The game's own rhythm, when the record has it.** Pacing can follow how
   long the players really took.
 
@@ -301,11 +377,15 @@ or with the last-move button; there is no reveal button.
 **Board** (ogatak `board_drawer.js` with the owner's config):
 
 - No coordinates. Wood `#d0ad75`, 1 px black grid, 3 px star points.
-- The last move is marked by a light blue (`#5cb8ff`) triangle: the lower-right
-  half of its square, cut from the square's upper-right corner to its
-  lower-left, filled to the square's edges and drawn over the stone. It
-  shows in every mode. It replaced Ogatak's red dot on 2026-09-30, because
-  the owner does not like red there, and red already means a bad move.
+- The last move is marked by a light blue (`#5cb8ff`) triangle in the
+  lower-right corner of its square, drawn over the stone: its two short
+  sides run 0.6 of the square along the square's bottom and right edges,
+  and its long side is parallel to the square's diagonal. It shows in every
+  mode. It replaced Ogatak's red dot on 2026-09-30, because the owner does
+  not like red there, and red already means a bad move. At first it was the
+  whole lower-right half of the square; the same evening the owner asked
+  for it smaller, and 0.6 of the square still reads at a glance on a
+  phone's 19 px squares.
   Guess mode pushes its option badges off it, as far as their placement
   allows (see "Guess mode").
 - Candidates use Ogatak's count mode: the engine's first move plus the 5
@@ -348,11 +428,18 @@ top to bottom:
   in both boxes for a jigo), with the words ("won by resignation") on hover.
   On phones the boxes sit above the board and their text is a size smaller,
   so a result still fits beside a short handle.
-- **Game facts:** the handicap ("H3"), komi, start date, and captures (a small
-  white and black stone, each with the stones that side has taken), all in
-  caption size. They sit beside the players, stacked, when the panel is at
-  least 720 px wide, and in one line underneath otherwise; on phones, below
-  the charts.
+- **Game facts:** the handicap ("H3"), the start date, and an "info"
+  button, all in caption size. They sit beside the players, stacked, when
+  the panel is at least 720 px wide, and in one line underneath otherwise;
+  on phones, below the charts. The button opens a card with komi, the
+  captures (a small white and black stone, each with the stones that side
+  has taken), and the dates: "played" for a game of one day, or "started"
+  and "finished" with the days between, as every DGS game has (see "What
+  the servers record"). The card shows while the mouse is over the button;
+  a click or tap keeps it open until the next one, a click elsewhere, or
+  Escape. It takes no focus, so the arrow keys still step moves. Komi and
+  captures moved into it on 2026-09-30 (the owner: "move komi into a
+  mouseover or clickable info thing, also capture count").
 - **Controls** (the owner: "the point mainly is that it should be super easy
   to use left/right one move"):
   - a full-width play/pause button with a clear 2 px border, gold while
@@ -361,11 +448,9 @@ top to bottom:
     only an arrow;
   - a small row: first move at the left, last move at the right, and between
     them the move counter and, in guess mode, the "lost" badge;
-  - the settings, small: "every", "mode", and in guess mode "show analysis",
-    then the badge size sliders and "show visits too". Each slider has a
-    notch at every step, numbers at both ends and at 100 and 150, and its
-    value in bold beside its label; on a wide panel the two sit side by
-    side.
+  - the settings, small: "every", "mode", and in guess mode the "show
+    analysis" button with the setting for how long analysis shows. Guess
+    mode's badge settings are the panel's last row (below).
   The buttons turn off double-tap zoom, so fast taps on a phone all count.
 - **Move quality:** a port of ogatak `draw_quality`. One bar per move fills
   its whole slot. Up means White gained, measured as the drop in Black's
@@ -388,6 +473,21 @@ top to bottom:
   - "W ahead" / "B ahead" sit on the left, not the right as in Ogatak,
     because at the right edge they collide with the "#move" label.
 - **Library actions:** status, tags, and the engine and visits used.
+- **Badge settings**, in guess mode only, are the last row, below the charts
+  and the library actions (the owner, 2026-09-30: "they should be side by
+  side, at the very bottom below the charts. so should the visit boolean
+  toggelr"): "played [− 100% +]", "others [− 100% +]" and a "visits"
+  checkbox, side by side. Each size is one of five steps, 50, 70, 100, 140
+  and 200% (about ×1.4 apart; the middle one is the default). The value is
+  bold between its − and + buttons, and a button that would step past
+  either end is hidden, its space kept. A size saved by the earlier
+  50–200% slider snaps to the nearest step. From a 1024 px window up the
+  three share one line. A phone's panel (about 350 px on a 390 px phone)
+  holds only the two steppers, so the checkbox goes under them: all three
+  would need about 390 px, or − and + buttons too narrow to tap. The
+  checkbox was "show visits too" until it moved here, shortened so the row
+  fits at 1024 px. It replaced two sliders in the settings above, which
+  had a notch at every 10%.
 
 **Removed on the owner's request (2026-09-26):**
 
@@ -428,7 +528,7 @@ boxes; and the game info between the boxes.
   charts.
 - On phones (below 1024 px) the page is one scrolling column: players,
   board, controls (so taps land in the same place), Move quality, Game status,
-  game facts, and library actions.
+  game facts, library actions, and in guess mode the badge settings.
 - The Next.js dev badge is off (`devIndicators: false`) because it covered
   text on phones.
 - Checked by Playwright screenshots at 1920×1080, 1024×728, and 390×844.
@@ -455,57 +555,65 @@ a clean board, then sees how the real move compared.
   - The mover's other options: the moves analysis mode showed for that
     position (the engine's first move plus the 5 lowest-cost moves, with the
     same visit minimum), minus the point that was played. Each is one
-    subtly round badge in its gradient colour, centred on the point's line
-    crossing. Its shape is a superellipse of exponent 2.5, between an
-    ellipse and a rounded square: a lone "0" is nearly a circle, and a
-    longer number a fat oval. It is just big enough to keep the text's ink
-    5% of the font size inside its 1 px edge. Round it runs a translucent
-    rim, 0.12 of the font size and never under 2 px, in the colour of the
-    stone the mover would have played there: 50% black for Black's
-    options, 70% white for White's. The badge holds the points it loses
-    against the best move: bold black
-    text, one decimal, whole points from 10 up ("12"), "0" for the best.
+    circle in its gradient colour, centred on the point's line crossing,
+    just big enough to keep the text's ink 5% of the font size inside its
+    1 px edge and never narrower than a one-line badge is tall (1.25 times
+    the font size): a "0" and a ".3" are about the same size, a "2.3" a
+    little bigger. Round it runs a rim, 0.12 of the font size and never
+    under 2 px, solid in the colour of the stone the mover would have
+    played there: black for Black's options, white for White's (the 1 px
+    edge is that colour too). The badge holds the points it loses against
+    the best move: bold black text, one decimal without a leading zero
+    (".3", "2.3"), whole points from 10 up ("12"), "0" for the best.
     There is no other mark on the point. The number is unsigned, like the
     "lost" readout, because every option is at or below the best; the colour
     already says good or bad.
   - Visits are off by default ("the analysis circles shall only say the
-    differential on that move"). "show visits too" adds them to every badge,
+    differential on that move"). The "visits" checkbox adds them to every badge,
     the played move's included, as a second line under the points, not bold,
     at 0.8 of their size: an option's own visits, and for the played move
     the visits of the search its value came from (see "Values").
   - The played stone keeps its last-move triangle and gets a badge at its
-    lower right, 1.15 times larger with a heavier edge, so it is the first
-    number the eye finds. The badge covers the triangle's middle, but the
-    triangle's diagonal edge and its ends still show round it. A move worse than every alternative
+    lower right, 1.15 times larger and with a 2 px edge in the mover's
+    colour (black or white, like the options' rims), so it is the first
+    number the eye finds. The badge covers the triangle's square corner. On
+    a large board the triangle's diagonal edge and its ends still show round
+    it; on a phone, where the badge is bigger than the smaller triangle,
+    little more than its tip does. While the rating shows, the badge is the
+    move's mark, and the whole triangle is back when it fades. A move worse than every alternative
     sets the far end of the colour scale, so it never shares their colour
     (ogatak-clear rule 6).
   - Badge size: by default the text is 0.4 of a square tall, never under
     12 px. That is 22 px on a 1920 px screen's 54 px squares, and 12 px on
     a phone's 19 px squares, where an option's badge reaches a little past
-    its square. Two sliders under the settings, "played move size" and
-    "other moves size", scale the played move's badge and the options'
-    separately, from 50% to 200% in steps of 10 (default 100%). They, and
-    "show visits too", show only in guess mode and are kept in the browser
-    like the other settings. Changing any of them shows the current move's
-    rating, and keeps it up while the setting changes, so the effect is in
-    view.
+    its square. Two steppers in the panel's last row, "played" and
+    "others", scale the played move's badge and the options' separately,
+    in five steps: 50, 70, 100 (the default), 140 and 200%. They, and
+    "visits", show only in guess mode and are kept in the browser like the
+    other settings. Changing any of them shows the current move's
+    rating again and restarts its time, so on a wide screen, where the
+    board stays beside the panel, the effect is in view. On a phone the row
+    is at the bottom of the page; after scrolling up, a timed rating may
+    have faded, and a tap on the board shows it again.
   - Placement: an option's badge is centred on the middle of its crossing's
-    1 px lines. Where two options' badges would overlap, they are pushed
-    apart along the line between their points. One that would touch the
+    1 px lines. Where two options' circles would overlap, they are pushed
+    apart along the line between their points; diagonal neighbours whose
+    circles clear each other stay put. One that would touch the
     last-move triangle is pushed back off it. That test is against the
     triangle itself, not the stone's whole square, so a neighbour to the
-    left or above may reach into the square's empty upper-left half.
-    Neither push is more than 30% of the badge's width or height, so each
-    still covers its own crossing, and the board's edge holds them in,
-    rims included. The rims are translucent, so they are drawn as one layer
-    under every badge. They take no room in this placing and never cover a
-    number, and where they meet they merge into one halo. Any overlap left is drawn
+    left or above may reach into the part of the square the triangle
+    leaves empty.
+    Neither push is more than 30% of the badge's width, so each still
+    covers its own crossing, and the board's edge holds them in, rims
+    included. The rims are drawn as one layer under every badge, so they
+    take no room in this placing and never cover a number, and where they
+    meet they merge into one band. Any overlap left is drawn
     with the option that loses least on top. At the default size a phone's
     badges keep every number whole even three in a row beside the played
     stone (game 404 move 119), overlapping only at their margins. With two
     lines (visits shown), or at large sizes, numbers there can still be
-    clipped, because a round badge holding two lines is about 28 × 30 px on
-    a 19 px square. The played stone cannot be mistaken, so its badge alone may
+    clipped, because a circle holding two lines is about 30 px across (34
+    with its rim) on a 19 px square. The played stone cannot be mistaken, so its badge alone may
     take another corner of the stone, when the lower right would hide
     options' badges or points; it is drawn above them all.
   - How it got here: until 2026-09-29 these were stone-sized circles like
@@ -521,16 +629,40 @@ a clean board, then sees how the real move compared.
     for the played move and asked for the options' badges to be "directly
     centered over the played spot (the line intersection)", with the two
     size sliders and the visits setting. On 2026-09-30 those rounded
-    rectangles became the round, rimmed badges above ("the candidate moves
-    will be this new thing"), while the played move's stayed as it was.
-  - Next to the move counter: "lost 2.30", with the value as a black-on-colour
-    badge in the move's gradient colour ("pass lost …" for a pass). A pass
-    has no stone to carry a badge, so there it is the only copy. Its space
-    is kept while empty, so nothing shifts when it appears.
+    rectangles became "subtly circular" badges ("the candidate moves will
+    be this new thing"), while the played move's stayed as it was: a
+    superellipse of exponent 2.5, a fat oval for longer numbers, with a
+    translucent rim (50% black, 70% white) as the owner asked ("a
+    semi-transparent background"). Later that day he asked for them
+    "basically circular", and for every rating's border to "match the
+    color of the stone they're evaluating". Translucent black over the
+    wood read as a brown shadow rather than a black stone, so the rims
+    became solid, and the played move's edge, until then black for both
+    sides, took the mover's colour.
+  - Next to the move counter: "lost .3", the board's label for the played
+    move (one decimal without a leading zero, whole points from 10 up;
+    until 2026-09-30 it had two decimals, "0.30"), black on the move's
+    gradient colour, in a badge edged 2 px in the mover's colour with a
+    1 px grey line outside, so a black edge still shows against the dark
+    panel ("pass lost …" for a pass). A pass has no stone to carry a
+    badge, so there it is the only copy. Its space is kept while empty, so
+    nothing shifts when it appears.
 - **How long:** "show analysis [3 s]" (named "reveal" until 2026-09-29):
   0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15 or 20 s, "until next move", or
   "hold till accepted". The default 3 s is the owner's "momentarily". A timed
   rating counts from when it has fully faded in, then fades out over 0.5 s.
+- **The "show analysis" button** (2026-09-30; the owner: "a quick override
+  toggler "show analysis" which forces analysis to show til the next move is
+  played, at which point the new one will be shown"). The words "show
+  analysis" in front of the setting are a button. Pressed (gold border), it
+  shows the current move's rating at once, and from then on each move's
+  rating stays up until the next move lands, as with "until next move",
+  whatever the setting says; the setting gives way to the words "until next
+  move", and autoplay never holds. Pressed again, the setting applies from
+  that moment: a timed rating fades after its time, and "hold till
+  accepted" holds autoplay again. It is a quick override, not a setting, so
+  it is not saved: opening a game starts with it off. Tapping the board
+  still hides the rating while it is pressed, until the next move.
 - **Hold till accepted** (the owner: "keep showing analysis until i tap to go
   on to the guess stage; if this is active and i tap to hide the analysis of
   the move just played, then we move forward to the (either autoplaying or
@@ -560,7 +692,7 @@ games (1,919 moves): 10% of played moves were under the minimum, and a quarter
 of those were a point or more from the following position's score, against 4%
 of better-visited moves. Another 11% were never reported by KataGo; the
 worker's `continuation` value for those is the following position's score too.
-The visits "show visits too" gives the played move are those of whichever
+The visits the "visits" setting gives the played move are those of whichever
 search supplied its score: its own, or the following position's.
 
 So "lost" can differ from the MOVE QUALITY bar for the same move, which is the
@@ -588,15 +720,16 @@ shall also take n, or 2x n, etc as options in the every list."
   understood; the move that starts a new Canadian period cannot be timed.
   `lib/sgf.ts` puts the result in each move's `seconds`. Real-time pacing
   needs times for at least half of the moves.
-- **No game in the library has them yet (2026-09-29).** The 572 DGS games are
+- An OGS game's times come from OGS's API instead, written into its SGF as
+  TIMEUSED when it is fetched (see "What the servers record").
+- **No game in the library has them yet (2026-09-30).** The 572 DGS games are
   correspondence games whose SGFs carry no clock, and their moves take hours
   or days anyway; the 9 seed games have none either. So the real choices show
   disabled, under "as the players took (no clock in this record)".
-  - OGS keeps per-move times in its game API (`gamedata.moves[i][2]`, in
-    milliseconds) but not in its SGFs, and the OGS fetcher does not read
-    them yet.
-  - KGS SGFs have BL/WL, but KGS archive pages now ask for a login, so the
-    KGS fetcher needs one before it can bring any in.
+  - OGS games fetched from 2026-09-30 have them, but no OGS account is
+    registered yet.
+  - KGS SGFs have BL/WL, and the files are public, but KGS archive pages
+    now ask for a login, so the KGS fetcher needs one to find them.
 
 ## Review mode: "think carefully" moments (requested 2026-09-24, not yet built)
 

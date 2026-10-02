@@ -33,6 +33,27 @@ export function playedOn(g: GameSummary): string {
   return g.datePlayed.split(/,|\.\./)[0] || "—";
 }
 
+/**
+ * When a game played over more than one day ended, and how many days after
+ * it began; null for a one-day game. SGF shortens later dates to "MM-DD" or
+ * "DD" ("1855-04-22,24,05-05").
+ */
+export function finishedOn(g: GameSummary): { date: string; days: number } | null {
+  const dates: string[] = [];
+  let full = "";
+  for (const part of g.datePlayed.split(/,|\.\./).map((p) => p.trim())) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(part)) full = part;
+    else if (full && /^\d{2}-\d{2}$/.test(part)) full = `${full.slice(0, 4)}-${part}`;
+    else if (full && /^\d{2}$/.test(part)) full = `${full.slice(0, 7)}-${part}`;
+    else continue;
+    dates.push(full);
+  }
+  if (dates.length < 2) return null;
+  const last = dates[dates.length - 1];
+  const days = Math.round((Date.parse(last) - Date.parse(dates[0])) / 86_400_000);
+  return days > 0 ? { date: last, days } : null;
+}
+
 /** The library's filters and sort, applied in the browser to every game. */
 export function filterGames(games: GameSummary[], f: LibraryFilters): GameSummary[] {
   const q = f.q.trim().toLowerCase();

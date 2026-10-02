@@ -38,33 +38,36 @@ this repo's docs, not in an agent's private memory.
  exactly as written: `scripts/publish-public.mjs` rewrites that line to build
  the public copy. `lib/progress.ts` saves viewing progress (LAN: database,
  public: the visitor's localStorage); `lib/library.ts` holds the library
- filters and how players and dates are shown (`handleOf`, `playedOn`, shared
- by the library and the replayer); `lib/game-data.ts` builds the read routes'
+ filters and how players and dates are shown (`handleOf`, `playedOn`,
+ `finishedOn`, shared by the library and the replayer); `lib/game-data.ts` builds the read routes'
  data.
 - `components/` — `replay.tsx` (replayer: player boxes, big one-move
-  controls, board modes, guess mode's timing),
+  controls, board modes, guess mode's timing, its "show analysis" override
+  button and its badge settings row, the "info" card with komi, captures
+  and dates),
   `goban.tsx` (canvas board, Ogatak look; stones on one canvas, candidate
   marks on a layer above that guess mode fades: analysis mode's circles, or
-  guess mode's badges, the options' subtly round, rimmed in the mover's
-  colour and centred on their points, and the played move's a rectangle at
-  a corner of its stone),
+  guess mode's badges, the options' circles rimmed in the mover's colour
+  and centred on their points, and the played move's a rectangle at a
+  corner of its stone, edged in the same colour),
   `review-charts.tsx` (canvas ports of
   ogatak-clear's MOVE QUALITY and GAME STATUS, each opening and closing),
-  `notched-slider.tsx` (the app's slider: a notch at every step, numbered
-  ends, the value beside its label), shadcn primitives in
-  `components/ui/`. The review screen is specified in PRODUCT.md "Review
+  shadcn primitives in `components/ui/`. The review screen is specified in PRODUCT.md "Review
   screen"; its reference implementation is `~/proj/ogatak-clear/src/modules/`
   (`move_report.js`, `board_drawer.js`, `colour_gradients.js`, `utils.js`).
 - `lib/db.ts` — SQLite schema (with a small `migrate` for added columns),
   seeding, ingest, analysis queue.
-  `lib/sgf.ts` — SGF parsing, including each move's clock time from BL/WL
+  `lib/sgf.ts` — SGF parsing, including each move's clock time from BL/WL,
+  or from `TIMEUSED` (this app's own property, written by the OGS fetcher)
   (server only; `@sabaki/sgf` needs `fs`).
   `lib/gtp.ts` — GTP coordinates, safe to import in the browser.
   `lib/review.ts` — candidate selection, Delta/Visits labels, gradient, and
   guess mode's rating of a played move (`rateMove`).
   `lib/use-stored.ts` — small settings kept in the browser's localStorage.
   `lib/types.ts` — shared types, tracked people.
-- `lib/fetchers/{ogs,kgs,dgs}.ts` — game fetchers per server.
+- `lib/fetchers/{ogs,kgs,dgs}.ts` — game fetchers per server. OGS's also
+  reads each game's API record and writes its end date and move times into
+  the stored SGF (`ogsRecord`; PRODUCT.md "What the servers record").
 - `scripts/analyzer.mjs` — the analysis worker (runs on the PC; 10,000 visits
   by default, and it re-analyses shallower games when the queue is empty);
   `scripts/katago-analysis.cfg` — its KataGo config (4 positions at once).
@@ -181,21 +184,26 @@ Convert only at the display layer, and follow these rules:
 - Candidates are shown relative to the best move from this position (0 =
   best), never relative to the global board value. In analysis mode circles
   carry Ogatak's "Delta + Visits" labels (the owner's Ogatak setting); guess
-  mode's badges carry the points lost (visits only if the viewer turns them
-  on), one per move: an option's centred on its point, round, with a
-  translucent rim in the colour of the stone that would have gone there
-  (under every badge, so it never covers a number), and kept off the
-  last-move triangle; the played move's at a corner of its stone. Default
+  mode's badges carry the points lost, one decimal without a leading zero
+  (".3"), the same label as the "lost" readout beside the move counter
+  (visits only if the viewer turns them on), one per move: an option's a
+  circle centred on its point, with a solid rim in the colour of the stone
+  that would have gone there (under every badge, so it never covers a
+  number), and kept off the last-move triangle; the played move's at a
+  corner of its stone, edged in the mover's colour, as the readout is.
+  Default
   text is at
-  least 12 px; two sliders scale the played and other badges 50–200%.
+  least 12 px; two − / + steppers at the bottom of the panel scale the
+  played and other badges in five steps, 50–200% (100% in the middle).
   Which moves appear is Ogatak's count mode, the
   best plus the 5 lowest-cost moves with at least 1% of the position's
   visits. Details and reasons: PRODUCT.md "Review screen".
 - One continuous best→worst gradient, green to a soft red with no browns
   (`lib/review.ts`); no special colour for the top move.
-- The last move is a light blue triangle filling the lower-right half of its
-  square, over the stone, in every mode. Not Ogatak's red dot: the owner
-  dislikes red there (2026-09-30), and red means a bad move.
+- The last move is a light blue triangle in the lower-right corner of its
+  square, its short sides 0.6 of the square (`LAST_MOVE_SIZE`), over the
+  stone, in every mode. Not Ogatak's red dot: the owner dislikes red there
+  (2026-09-30), and red means a bad move.
 - Never show the future: no next-move marker, charts end at the current
   move, and the result appears only once the last move is on the board.
   Guess mode shows a move's own value only once that move is on the board
@@ -244,7 +252,10 @@ Convert only at the display layer, and follow these rules:
   The phone opens `http://192.168.1.27:4517/game?id=<id>` (older
   `/game/<id>` links redirect), or the public copy.
 - KGS archive pages now ask for a login (found 2026-09-29), so
-  `lib/fetchers/kgs.ts` finds no games until it logs in.
+  `lib/fetchers/kgs.ts` finds no games until it logs in. The game files
+  themselves are still public and carry the players' clocks; which servers
+  record what (dates, thinking time, sources) is in PRODUCT.md "What the
+  servers record".
 - Visual checks: `node scripts/review-screenshots.mjs <url> <move> [outDir]
   [mode]` saves 1920×1080, 1024×728, and 390×844 screenshots, paused and
   autoplaying, in the given board mode; guess mode adds a `-rating` shot

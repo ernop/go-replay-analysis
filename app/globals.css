@@ -171,45 +171,6 @@
     border-color: #e0b872;
     outline: none;
   }
-  /* A slider's track and 18px thumb; NotchedSlider draws its notches and numbers. */
-  .range {
-    appearance: none;
-    height: 24px;
-    background: transparent;
-    cursor: pointer;
-  }
-  .range::-webkit-slider-runnable-track {
-    height: 4px;
-    border-radius: 2px;
-    background: #9a9a9a;
-  }
-  .range::-webkit-slider-thumb {
-    appearance: none;
-    box-sizing: border-box;
-    width: 18px;
-    height: 18px;
-    margin-top: -7px;
-    border: 2px solid #000000;
-    border-radius: 50%;
-    background: var(--gold);
-  }
-  .range::-moz-range-track {
-    height: 4px;
-    border-radius: 2px;
-    background: #9a9a9a;
-  }
-  .range::-moz-range-thumb {
-    box-sizing: border-box;
-    width: 18px;
-    height: 18px;
-    border: 2px solid #000000;
-    border-radius: 50%;
-    background: var(--gold);
-  }
-  .range:focus-visible {
-    outline: 2px solid var(--gold);
-    outline-offset: 3px;
-  }
 }
 
 @keyframes autoplay-progress {
