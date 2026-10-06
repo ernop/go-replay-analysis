@@ -41,7 +41,8 @@ this repo's docs, not in an agent's private memory.
  filters and how players and dates are shown (`handleOf`, `playedOn`,
  `finishedOn`, shared by the library and the replayer); `lib/game-data.ts` builds the read routes'
  data, which in the public copy holds only games reviewed in full
- (`PUBLIC_MIN_VISITS`, 10,000 visits; PRODUCT.md "Public copy").
+ (`PUBLIC_MIN_VISITS`, 10,000 visits) and only the moves the review screen
+ can show (`analysisForThisSite`; PRODUCT.md "Public copy").
 - `components/` — `replay.tsx` (replayer: player boxes, big one-move
   controls, board modes, guess mode's timing, its "show analysis" override
   button and its badge settings row, the "info" card with komi, captures
@@ -285,6 +286,14 @@ Convert only at the display layer, and follow these rules:
   15:03; shutting the PC down at 15:12 stopped the worker in game 583, and
   the PC stayed off until 2026-10-05. On 2026-10-06 the LAN app and the
   worker were started again for games 583–602.
+- On 2026-10-06 the owner asked for all of Adam's games to be reviewed and
+  on the public copy. After game 584, the queue holds Adam's 390 unreviewed
+  games, newest first (game 399 first), then his 23×23 and 25×25 games (52,
+  53, 36, 508, 515), then the 19 Super Go games still waiting: about 98
+  hours at 10,000 visits, roughly 100 games a day. The KataGo builds in
+  `~/katago` are release builds, which stop at 19×19, so the big-board games
+  are expected to end in `error` (the worker moves on) until a build for
+  larger boards is used for them.
 - Since 2026-10-06 the public copy holds only games reviewed in full at
   10,000 visits (12 then: the 11 below and game 582), and analysis mode
   shows the played move's rating (PRODUCT.md "Public copy", "Review

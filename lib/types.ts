@@ -50,7 +50,8 @@ export interface AnalysisCandidate {
   winrate: number; // black perspective, 0..1
   scoreLead: number; // black perspective
   visits: number;
-  pv: string[];
+  /** Absent in the public copy, which sends only what the review screen shows. */
+  pv?: string[];
   /**
    * "continuation" means KataGo did not report this move and the value is the
    * root of the position after it was played. Absent means KataGo reported it.

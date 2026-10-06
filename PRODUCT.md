@@ -939,7 +939,22 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
   64 MiB only because it held each upload in memory; it now streams files to
   disk. The site's policy (`fuseki4_ai/setup/apps/receivers/go-replayer.json`)
   admits 512 MiB, 16,384 files and 64 MiB per file, room for roughly 300 games
-  analysed at 10,000 visits.
+  analysed at 10,000 visits as stored, and about 2,000 as published (next
+  point).
+- **The public copy sends only what the review screen can show** (decided
+  2026-10-06, so that all of Adam's games fit). At 10,000 visits KataGo
+  reports about 85 moves per position, each with its principal variation,
+  and a stored game's analysis is about 1.6 MB; Adam's 401 games alone would
+  pass the 512 MiB limit. The public build keeps, for each position, the
+  engine's first move and the moves with at least 1% of the position's visits
+  (the review screen's minimum, `candidateMinVisits`), and drops principal
+  variations and the worker's values for played moves KataGo did not report
+  (`analysisForThisSite` in `lib/game-data.ts`). Nothing on screen changes:
+  the board's candidates and guess mode's options come only from those
+  moves, and a played move below the minimum is valued from the following
+  position, which every published game has. A published game is then about
+  0.23 MB (the first twelve reviewed games: 18.7 MB stored, 2.8 MB
+  published). The LAN app and the database keep everything.
 - **Every push to GitHub's `main` publishes** (decided 2026-09-26; the owner:
   "i want that to autoupdate every time i push to github"). GitHub cannot
   build the site itself, because the games and analysis live only in the PC's
@@ -992,14 +1007,13 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
 
 ## Open items
 
-- Public copy size: at 10,000 visits a game's analysis is almost 3 times its
-  size at 1,000, because KataGo reports ~83 moves per position instead of ~30
-  (game 580: 0.99 MB against 0.36 MB). An average 180-move game will be about
-  1.5 MB. Every publish uploads the whole site, and the PC uploads to Fuseki
-  at about 1.8 MiB/s, so a 512 MiB site would take about five minutes each
-  half-hourly data publish. If the site grows that large, the publisher
-  should send only changed files (the receiver linking the rest from the live
-  release) or precompress the data files (nginx `gzip_static`).
+- Public copy size: every publish uploads the whole site, and the PC uploads
+  to Fuseki at about 1.8 MiB/s. Since the public copy sends only what the
+  screen shows (about 0.23 MB a game, "Public copy" above), all 602 games
+  would make about 140 MB, about 80 seconds an upload. If the site grows
+  much larger, the publisher should send only changed files (the receiver
+  linking the rest from the live release) or precompress the data files
+  (nginx `gzip_static`).
 
 - Owner to supply usernames for Me/Carl/Adam/Gary on their servers, and the
   preferred game source to bulk-download from.
