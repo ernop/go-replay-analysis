@@ -142,17 +142,14 @@ this repo's docs, not in an agent's private memory.
   bound to 0.0.0.0). `npm run lint` and `npx tsc --noEmit` must pass before
   committing. (tvnik's system Node is 18, so there Node 22 comes from nvm:
   `export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 22`.)
-- The PC's LAN app (the one the phone opens) runs as a transient user
-  service, so it outlives the shell that started it (linger is on). Like
-  the analysis worker, it does not come back after a reboot; start it again
-  with:
-
-      systemd-run --user --unit=go-replay-dev \
-        --working-directory=/home/ef/proj/go-replay-analysis /usr/bin/npm run dev
-
-  Log: `journalctl --user -u go-replay-dev`. Stop:
-  `systemctl --user stop go-replay-dev`; to restart, stop it and run the
-  command again.
+- The PC's LAN app (the one the phone opens) runs as the systemd user
+  service `go-replay-lan` (`next dev` on :4517; unit in
+  `deploy/systemd/go-replay-lan.service`, installed in
+  `~/.config/systemd/user/`, enabled since 2026-10-06, linger on), so it
+  starts at boot and outlives any shell. Restart with
+  `systemctl --user restart go-replay-lan`; logs with
+  `journalctl --user -u go-replay-lan`. Do not start a second dev server on
+  4517 from an agent session.
 - Secrets: `.env.local` (gitignored) holds `DGS_USERID` / `DGS_PASSWD`; the
   template is `.env.example`. Only the server machine needs it: the PC's
   was copied from tvnik's on 2026-09-26, and its DGS login was checked from
@@ -193,17 +190,14 @@ visits, CPU build): all 63 positions posted and stored. `--mock` produces fake
 data for UI work and never re-analyses; `--once` exits when there is nothing
 left to do; `--no-deepen` leaves shallower analyses alone.
 
-A worker started from a chat's or terminal's shell dies with it. To keep it
-running, start it as a transient user service (linger is on, so it also
-survives logout); with `--once` it ends when the queue is empty:
-
-    systemd-run --user --unit=go-replay-analyzer \
-      --working-directory=/home/ef/proj/go-replay-analysis \
-      /usr/bin/node scripts/analyzer.mjs --server http://127.0.0.1:4517 \
-      --katago /home/ef/katago/trt/katago-trt \
-      --model /home/ef/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz --once
-
-Log: `journalctl --user -u go-replay-analyzer`. Stop:
+A worker started from a chat's or terminal's shell dies with it. On the PC
+the worker is the systemd user service `go-replay-analyzer` (the command
+above with `--once`; unit in `deploy/systemd/go-replay-analyzer.service`,
+installed in `~/.config/systemd/user/`, enabled since 2026-10-06). It
+starts at boot, so a run a reboot interrupted carries on; it restarts
+itself if KataGo dies, and it exits, freeing the GPU, when nothing is
+queued. After queueing more games: `systemctl --user start
+go-replay-analyzer`. Log: `journalctl --user -u go-replay-analyzer`. Stop:
 `systemctl --user stop go-replay-analyzer`; the game it was on stays
 `running` until the 15-minute rule above hands it out again.
 
@@ -290,10 +284,12 @@ Convert only at the display layer, and follow these rules:
   on the public copy. After game 584, the queue holds Adam's 390 unreviewed
   games, newest first (game 399 first), then his 23×23 and 25×25 games (52,
   53, 36, 508, 515), then the 19 Super Go games still waiting: about 98
-  hours at 10,000 visits, roughly 100 games a day. The KataGo builds in
+  hours at 10,000 visits, roughly 100 games a day. The LAN app and the
+  worker became enabled user services that day, so a reboot only pauses
+  the run (see "Running"). The KataGo builds in
   `~/katago` are release builds, which stop at 19×19, so the big-board games
-  are expected to end in `error` (the worker moves on) until a build for
-  larger boards is used for them.
+  are expected to end in `error` (the worker moves on) until KataGo's
+  `+bs50` build is used for them (PRODUCT.md "Analysis pipeline").
 - Since 2026-10-06 the public copy holds only games reviewed in full at
   10,000 visits (12 then: the 11 below and game 582), and analysis mode
   shows the played move's rating (PRODUCT.md "Public copy", "Review

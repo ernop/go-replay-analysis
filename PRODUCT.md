@@ -259,6 +259,20 @@ the public copy.
   position by default (`--visits` to change; see "Analysis depth").
 - `--mock` mode generates plausible fake data (engine label "MockEngine (demo
   data)") so the UI works without a GPU; used for demos/tests only.
+- **A run keeps going through reboots** (decided 2026-10-06). The owner:
+  "let's start the analysis manually now and keep that going til at least
+  all currently known games of adam are fully analysed and live in the app
+  on prod". The first run of 2026-10-02 stopped when the PC was shut down
+  and stayed stopped for three days, so the LAN app and the worker are now
+  enabled systemd user services on the PC (`deploy/systemd/`): they start
+  at boot, the worker restarts if KataGo dies, and it exits, freeing the
+  GPU, once nothing is queued. Adam's 390 unreviewed games were queued
+  newest first, ahead of the Super Go games already waiting.
+- Boards above 19×19 cannot be analysed yet: the KataGo release builds on
+  the PC stop at 19×19. KataGo publishes `+bs50` builds (up to 50×50) for
+  every backend, TensorRT included; they are slower on 19×19, so they would
+  be a second engine for large boards only. Adam has two 23×23 and three
+  25×25 games.
 
 ## Analysis depth (decided 2026-09-29)
 

@@ -1,0 +1,17 @@
+[Unit]
+Description=go-replay-analysis LAN app on the PC (next dev, :4517)
+
+[Service]
+# The app the phone opens and the analysis worker posts to.
+# Install: copy to ~/.config/systemd/user/, then
+#   systemctl --user daemon-reload && systemctl --user enable --now go-replay-lan
+# Dev mode on purpose: it picks up `git pull` without a rebuild.
+WorkingDirectory=%h/proj/go-replay-analysis
+Environment=NEXT_TELEMETRY_DISABLED=1
+ExecStart=/usr/bin/npm run dev
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=go-replay-analysis KataGo worker (exits when the queue is empty)
+Wants=go-replay-lan.service
+After=go-replay-lan.service
+
+[Service]
+# Analyses queued games and posts the results to the LAN app. Enabled, so a
+# run that a reboot interrupted carries on; with --once it exits, freeing the
+# GPU, when nothing is queued. After queueing more games:
+#   systemctl --user start go-replay-analyzer
+# Install: copy to ~/.config/systemd/user/, then
+#   systemctl --user daemon-reload && systemctl --user enable --now go-replay-analyzer
+WorkingDirectory=%h/proj/go-replay-analysis
+ExecStart=/usr/bin/node scripts/analyzer.mjs --server http://127.0.0.1:4517 --katago %h/katago/trt/katago-trt --model %h/katago/nets/b10c512h8nbt3tflrs-fson-silu-rsnh.bin.gz --once
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
