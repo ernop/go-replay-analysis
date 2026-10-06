@@ -25,8 +25,8 @@ interface GobanProps {
   played?: PlayedMark | null;
   /**
    * Guess mode's style: each candidate is a badge in its colour centred on
-   * its point, and the played move gets a larger badge centred on its stone.
-   * Otherwise candidates are stone-sized circles holding their lines.
+   * its point. Otherwise candidates are stone-sized circles holding their
+   * lines. Either way the played move's larger badge is centred on its stone.
    */
   badges?: boolean;
   /** Badge sizes as multiples of the default: the candidates', and the played move's. */
@@ -230,28 +230,6 @@ export function Goban({
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      if (!badges) {
-        // ogatak board_font_chooser: "999" fills 59% of a square.
-        const font = (n: number) => `${n}px ${family}`;
-        ctx.font = font(fitFontPx(ctx, font, 0.59 * square, ["999"]));
-        for (const m of marks.filter(onEmpty)) {
-          const cx = centre(m.vertex[0]);
-          const cy = centre(m.vertex[1]);
-          ctx.beginPath();
-          ctx.arc(cx, cy, square / 2, 0, Math.PI * 2);
-          ctx.fillStyle = m.fill;
-          ctx.fill();
-          ctx.fillStyle = "#000000";
-          if (m.lines.length >= 2) {
-            ctx.fillText(m.lines[0], cx, cy - square / 6 + 0.5);
-            ctx.fillText(m.lines[1], cx, cy + square / 6 + 1.5);
-          } else if (m.lines.length === 1) {
-            ctx.fillText(m.lines[0], cx, cy + 2);
-          }
-        }
-        return;
-      }
-
       const base = Math.max(BADGE_MIN_PX, BADGE_FONT * square);
       const markFont = Math.max(6, Math.round(base * markScale));
       const shown = marks.filter(onEmpty);
@@ -309,12 +287,48 @@ export function Goban({
         return { x, y, w, h, font, sub, offsets };
       };
       const playedBadge = playedStone && playedShape(playedStone);
+      const side = SIDE_COLOUR[markSide ?? "B"];
+      // The played move's badge is drawn last, above everything else.
+      const drawPlayed = () => {
+        if (!playedBadge || !playedStone) return;
+        const { x, y, w, h, font, sub, offsets } = playedBadge;
+        ctx.beginPath();
+        ctx.roundRect(x + 1, y + 1, w - 2, h - 2, Math.round(font * 0.375));
+        ctx.fillStyle = playedStone.fill;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = side;
+        ctx.stroke();
+        writeLines(playedStone.lines, x + w / 2, y + h / 2, font, sub, offsets);
+      };
+
+      if (!badges) {
+        // ogatak board_font_chooser: "999" fills 59% of a square.
+        const font = (n: number) => `${n}px ${family}`;
+        ctx.font = font(fitFontPx(ctx, font, 0.59 * square, ["999"]));
+        for (const m of marks.filter(onEmpty)) {
+          const cx = centre(m.vertex[0]);
+          const cy = centre(m.vertex[1]);
+          ctx.beginPath();
+          ctx.arc(cx, cy, square / 2, 0, Math.PI * 2);
+          ctx.fillStyle = m.fill;
+          ctx.fill();
+          ctx.fillStyle = "#000000";
+          if (m.lines.length >= 2) {
+            ctx.fillText(m.lines[0], cx, cy - square / 6 + 0.5);
+            ctx.fillText(m.lines[1], cx, cy + square / 6 + 1.5);
+          } else if (m.lines.length === 1) {
+            ctx.fillText(m.lines[0], cx, cy + 2);
+          }
+        }
+        drawPlayed();
+        return;
+      }
 
       // A candidate's badge is a circle whose 1px edge stays INK_GAP clear of
       // every line's ink, and never narrower than a one-line badge is tall
       // (r is the radius inside that edge). The rim goes under every badge,
       // so it takes no room and never covers a number.
-      const side = SIDE_COLOUR[markSide ?? "B"];
       const rim = Math.max(2, Math.round(markFont * RIM_WIDTH));
       const gap = INK_GAP * markFont;
       const optionShape = (lines: string[]) => {
@@ -456,18 +470,7 @@ export function Goban({
         writeLines(c.m.lines, cx, cy, markFont, c.sub, c.offsets);
       }
 
-      // The played move's badge is drawn last, above them all.
-      if (playedBadge && playedStone) {
-        const { x, y, w, h, font, sub, offsets } = playedBadge;
-        ctx.beginPath();
-        ctx.roundRect(x + 1, y + 1, w - 2, h - 2, Math.round(font * 0.375));
-        ctx.fillStyle = playedStone.fill;
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = side;
-        ctx.stroke();
-        writeLines(playedStone.lines, x + w / 2, y + h / 2, font, sub, offsets);
-      }
+      drawPlayed();
     };
 
     draw();

@@ -40,7 +40,8 @@ this repo's docs, not in an agent's private memory.
  public: the visitor's localStorage); `lib/library.ts` holds the library
  filters and how players and dates are shown (`handleOf`, `playedOn`,
  `finishedOn`, shared by the library and the replayer); `lib/game-data.ts` builds the read routes'
- data.
+ data, which in the public copy holds only games reviewed in full
+ (`PUBLIC_MIN_VISITS`, 10,000 visits; PRODUCT.md "Public copy").
 - `components/` — `replay.tsx` (replayer: player boxes, big one-move
   controls, board modes, guess mode's timing, its "show analysis" override
   button and its badge settings row, the "info" card with komi, captures
@@ -140,6 +141,17 @@ this repo's docs, not in an agent's private memory.
   bound to 0.0.0.0). `npm run lint` and `npx tsc --noEmit` must pass before
   committing. (tvnik's system Node is 18, so there Node 22 comes from nvm:
   `export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 22`.)
+- The PC's LAN app (the one the phone opens) runs as a transient user
+  service, so it outlives the shell that started it (linger is on). Like
+  the analysis worker, it does not come back after a reboot; start it again
+  with:
+
+      systemd-run --user --unit=go-replay-dev \
+        --working-directory=/home/ef/proj/go-replay-analysis /usr/bin/npm run dev
+
+  Log: `journalctl --user -u go-replay-dev`. Stop:
+  `systemctl --user stop go-replay-dev`; to restart, stop it and run the
+  command again.
 - Secrets: `.env.local` (gitignored) holds `DGS_USERID` / `DGS_PASSWD`; the
   template is `.env.example`. Only the server machine needs it: the PC's
   was copied from tvnik's on 2026-09-26, and its DGS login was checked from
@@ -223,7 +235,11 @@ Convert only at the display layer, and follow these rules:
   the colour of the stone that would have gone there (under every badge, so
   it never covers a number), and kept off the last-move triangle; the
   played move's a rounded rectangle, all four corners alike, centred on its
-  stone, edged in the mover's colour, as the readout is.
+  stone, edged in the mover's colour, as the readout is. Analysis mode
+  gives the move on the board the same badge and readout, beside the next
+  move's circles, for as long as the move is on the board; for a move the
+  search barely visited, the value is the following position's own
+  10,000-visit search (PRODUCT.md "Review screen").
   Default
   text is at
   least 12 px; two − / + steppers at the bottom of the panel scale the
@@ -265,7 +281,14 @@ Convert only at the display layer, and follow these rules:
   Japan–China Super Go games, ids 583–602, 17 of them Yoda Norimoto's
   (PRODUCT.md "Professional games"). All 21 were queued that afternoon,
   Adam's first, and the `go-replay-analyzer` user service started at 14:50
-  to analyse them (about 7 hours at 10,000 visits).
+  to analyse them (about 7 hours at 10,000 visits). Game 582 was done at
+  15:03; shutting the PC down at 15:12 stopped the worker in game 583, and
+  the PC stayed off until 2026-10-05. On 2026-10-06 the LAN app and the
+  worker were started again for games 583–602.
+- Since 2026-10-06 the public copy holds only games reviewed in full at
+  10,000 visits (12 then: the 11 below and game 582), and analysis mode
+  shows the played move's rating (PRODUCT.md "Public copy", "Review
+  screen").
 - The worker stores every move KataGo reports, plus the played move's value
   from the following position when KataGo did not report it. It retries a
   failed results post 6 times over about 30 s, because the dev server returns

@@ -30,6 +30,7 @@ import {
   vertexToGtp,
   visitsLabel,
   type BoardCandidate,
+  type MoveRating,
 } from "@/lib/review";
 import { SITE_MODE } from "@/lib/site-mode";
 import { useStoredString } from "@/lib/use-stored";
@@ -299,12 +300,16 @@ export function Replay({ id }: { id: number }) {
   }, [idx, moveCount]);
 
   const lastPlayed = detail && idx > 0 ? detail.moves[idx - 1] : null;
-  const rating = useMemo(() => {
-    if (mode !== "guess" || !lastPlayed) return null;
+  // How the move on the board compares with the mover's options. Analysis
+  // mode shows it for as long as the move is on the board; guess mode only
+  // while its reveal is up, so only guess mode's rating drives the reveal.
+  const lastRating = useMemo(() => {
+    if (mode === "off" || !lastPlayed) return null;
     const before = analysis?.positions[String(idx - 1)];
     const after = analysis?.positions[String(idx)];
     return rateMove(before, after, vertexToGtp(lastPlayed.vertex, size), lastPlayed.color);
   }, [mode, lastPlayed, analysis, idx, size]);
+  const rating = mode === "guess" ? lastRating : null;
   const shownReveal = rating && reveal?.idx === idx ? reveal : null;
   // "hold till accepted": autoplay waits while a move's analysis shows.
   const holding = revealRule === "accept" && !!shownReveal?.on;
@@ -468,9 +473,15 @@ export function Replay({ id }: { id: number }) {
 
   // Analysis mode's circles carry "Delta + Visits" (the owner's Ogatak
   // setting); guess mode's badges carry the points lost, and the visits when
-  // the viewer asks for them.
+  // the viewer asks for them. The move on the board gets the same badge on
+  // its stone in both modes: in analysis mode beside the next move's circles,
+  // in guess mode among the options it was chosen from.
   let marks: BoardMark[] = [];
   let played: PlayedMark | null = null;
+  const badgeLines = (cost: number, visits: number) =>
+    showVisits ? [pointsLabel(cost), visitsLabel(visits)] : [pointsLabel(cost)];
+  const playedMark = (r: MoveRating, vertex: [number, number] | null): PlayedMark | null =>
+    vertex && { vertex, fill: costColour(r.playedCost, r.scale), lines: badgeLines(r.playedCost, r.playedVisits) };
   if (mode === "analysis") {
     const infos = positionCandidates(current);
     const { shown, scale } = selectCandidates(infos, sideToMove, current?.visits ?? 0);
@@ -479,19 +490,14 @@ export function Replay({ id }: { id: number }) {
       deltaLabel(bestLead, s.candidate.scoreLead, sideToMove),
       visitsLabel(s.candidate.visits),
     ]);
+    if (lastRating && lastPlayed) played = playedMark(lastRating, lastPlayed.vertex);
   } else if (rating && shownReveal && lastPlayed) {
-    const badgeLines = (cost: number, visits: number) =>
-      showVisits ? [pointsLabel(cost), visitsLabel(visits)] : [pointsLabel(cost)];
     const bestFirst = [...rating.alternatives].sort((a, b) => a.cost - b.cost);
     marks = candidateMarks(bestFirst, rating.scale, size, (s) => badgeLines(s.cost, s.candidate.visits));
-    if (lastPlayed.vertex) {
-      played = {
-        vertex: lastPlayed.vertex,
-        fill: costColour(rating.playedCost, rating.scale),
-        lines: badgeLines(rating.playedCost, rating.playedVisits),
-      };
-    }
+    played = playedMark(rating, lastPlayed.vertex);
   }
+  // The "lost" readout beside the move counter follows the played badge.
+  const shownRating = mode === "analysis" ? lastRating : shownReveal ? rating : null;
   const revealClass = !shownReveal
     ? ""
     : shownReveal.on
@@ -537,7 +543,7 @@ export function Replay({ id }: { id: number }) {
           badges={mode === "guess"}
           markScale={markSize / 100}
           playedScale={playedSize / 100}
-          markSide={mode === "guess" ? lastPlayed?.color : undefined}
+          markSide={lastPlayed?.color}
           marksKey={mode === "guess" ? `reveal-${reveal?.serial ?? 0}` : mode}
           marksClassName={mode === "guess" ? revealClass : undefined}
           onBoardClick={mode === "guess" ? toggleReveal : undefined}
@@ -604,22 +610,22 @@ export function Replay({ id }: { id: number }) {
                 <dt className="fs-caption">total</dt>
                 <dd className="fs-body text-right tabular-nums">{moveCount}</dd>
               </dl>
-              {mode === "guess" && (
+              {mode !== "off" && (
                 // Kept even when empty, so nothing shifts when a rating appears.
                 <span className="flex min-w-[6.5rem] items-baseline">
-                  {rating && shownReveal && lastPlayed && (
-                    <span key={shownReveal.serial} className={`flex items-baseline gap-2 whitespace-nowrap ${revealClass}`}>
+                  {shownRating && lastPlayed && (
+                    <span key={shownReveal?.serial ?? mode} className={`flex items-baseline gap-2 whitespace-nowrap ${revealClass}`}>
                       <span className="fs-caption">{lastPlayed.vertex ? "lost" : "pass lost"}</span>
                       <span
                         className="fs-emph rounded-sm border-2 px-1.5 font-bold tabular-nums text-black"
                         style={{
-                          background: costColour(rating.playedCost, rating.scale),
+                          background: costColour(shownRating.playedCost, shownRating.scale),
                           borderColor: SIDE_COLOUR[lastPlayed.color],
                           // A black border would vanish into the panel without a light line round it.
                           boxShadow: "0 0 0 1px #9a9a9a",
                         }}
                       >
-                        {pointsLabel(rating.playedCost)}
+                        {pointsLabel(shownRating.playedCost)}
                       </span>
                     </span>
                   )}

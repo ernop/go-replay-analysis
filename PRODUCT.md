@@ -277,7 +277,9 @@ only have 40 nodes as backing them up!"
   again. The `analysis_visits` column holds the visits of each game's last
   complete run.
   - The game stays `done` throughout, so it never leaves the library's
-    "analysis done" filter, here or on the public copy.
+    "analysis done" filter. The public copy carries a game only once a
+    complete run has reached 10,000 visits (see "Public copy"), so a game
+    first analysed at 1,000 appears there when its deeper run completes.
   - New positions replace old ones as they arrive, and the game counts as
     deeper only once the run completes.
   - A failed run leaves the game `done` with its old analysis, and it is tried
@@ -477,6 +479,23 @@ or with the last-move button; there is no reveal button.
 - A "mode" dropdown chooses what the board shows: `analysis` (these
   circles, for the side to move), `guess` (see "Guess mode"), or `off`
   (stones only; it replaced the "candidates on/off" toggle).
+- **Analysis mode rates the move on the board too** (decided 2026-10-02).
+  The owner: "imagine we find the to5 moves are a-e but a user plays
+  anotehr, f. intentionally amnage the engine to artificailly calculate the
+  game value for the actually played move "F", and backfill that in the
+  analysis view please." Analysis mode had shown only the circles for the
+  next move, so a move played away from them was never valued on screen.
+  Now, once a move is on the board, it carries guess mode's played badge
+  (the points it lost, centred on its stone, edged in the mover's colour)
+  beside the circles for the next move, and the "lost" readout beside the
+  move counter shows the same number. Both stay while the move is on the
+  board, with no timing; guess mode is unchanged. The value is guess mode's
+  (see "Guess mode", **Values**): for a move KataGo gave under 1% of the
+  position's visits, or none, it is the score of the position after the
+  move, which has its own 10,000-visit search. That search already is the
+  engine valuing the played move: making KataGo search only that move from
+  the position before (its `allowMoves`) would search the same board again,
+  so no extra search is run.
 
 **Panel** (everything right of the board on desktop; below it on phones),
 top to bottom:
@@ -797,6 +816,10 @@ games (1,919 moves): 10% of played moves were under the minimum, and a quarter
 of those were a point or more from the following position's score, against 4%
 of better-visited moves. Another 11% were never reported by KataGo; the
 worker's `continuation` value for those is the following position's score too.
+Measured again on 2026-10-02, with the same games at 10,000 visits: 77% of
+played moves had the minimum (100 visits), 20% were under it and 3% were
+never reported, so the following position values 23% of played moves, and
+none is left without a value.
 The visits the "visits" setting gives the played move are those of whichever
 search supplied its score: its own, or the following position's.
 
@@ -891,8 +914,14 @@ I want to get new updates ... everyone who's viewing it will just have their
 own local storage in their browser. It just tells them what they've seen, what
 they haven't". The owner named the host `go-replayer.fuseki.net`.
 
-- Every game in the library is published, analyzed or not, with the same
-  library filters and review screen as the LAN app.
+- **Only games reviewed in full are published** (decided 2026-10-02,
+  replacing "every game, analysed or not"). The owner: "our goal is mainly
+  toh ave REVIEWED (at least 10k nodes per position) games only on the
+  remote site." A game goes public once its analysis is complete at 10,000
+  visits per position or more (`analysis_state` done and `analysis_visits`
+  >= 10,000; `PUBLIC_MIN_VISITS` in `lib/game-data.ts`). Games queued or
+  being analysed, and the library's unanalysed games, stay on the LAN app.
+  The site has the same library filters and review screen as the LAN app.
 - Each visitor's status (new, skipped, played, done), last viewed move and
   watched-to-end live only in their browser (localStorage key
   `go-replayer.progress`); reaching the last move marks a new or skipped game
@@ -926,14 +955,15 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
   anyone's pull request could run code on the PC.
 - **New analysis publishes too, at most every 30 minutes** (decided
   2026-09-26, the owner's "yes please" to that offer). The same check notices
-  when the database has changed in a way the site shows: new or finished
-  analysis, games added or removed, tags, accounts. It then republishes once
-  30 minutes have passed since the last publish, so a long analysis run
-  reaches the site in half-hourly steps rather than after every batch the
-  worker posts. It compares a fingerprint of the published columns (for
-  analysis, the time of the last write and the progress, not the analysis
-  itself), so watching a game, which saves viewing progress every few seconds
-  but is not published, never triggers a build. The fingerprint only decides
+  when the database has changed in a way the site shows: a game newly
+  reviewed in full, deeper analysis of a published game, tags, accounts. It
+  then republishes once 30 minutes have passed since the last publish, so a
+  long analysis run reaches the site in half-hourly steps rather than after
+  every game. It compares a fingerprint of the published games' columns (for
+  analysis, the time of the last write and the visits, not the analysis
+  itself), so neither analysis of a game not yet reviewed in full nor
+  watching a game, which saves viewing progress every few seconds but is
+  not published, triggers a build. The fingerprint only decides
   when to build: the release's content hash still decides whether anything is
   uploaded.
 - Game pages are `/game?id=<id>` in both builds (one static page for the public
