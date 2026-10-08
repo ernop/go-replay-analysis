@@ -198,7 +198,10 @@ starts at boot, so a run a reboot interrupted carries on; it restarts
 itself if KataGo dies, and it exits, freeing the GPU, when nothing is
 queued. After queueing more games: `systemctl --user start
 go-replay-analyzer`. Log: `journalctl --user -u go-replay-analyzer`. Stop:
-`systemctl --user stop go-replay-analyzer`; the game it was on stays
+`systemctl --user stop go-replay-analyzer`. Schedule (since 2026-10-08): user
+timers `go-replay-analyzer-start.timer` (00:00) and
+`go-replay-analyzer-stop.timer` (07:00) start and stop the service daily
+(units in `deploy/systemd/`, installed in `~/.config/systemd/user/`). The game it was on stays
 `running` until the 15-minute rule above hands it out again.
 
 API routes have no authentication. Acceptable on the home LAN only; add auth

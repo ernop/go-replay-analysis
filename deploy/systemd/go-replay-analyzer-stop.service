@@ -1,0 +1,6 @@
+[Unit]
+Description=Stop the go-replay-analysis KataGo worker (morning cutoff)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --user stop go-replay-analyzer.service

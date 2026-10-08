@@ -1,0 +1,8 @@
+[Unit]
+Description=Start the KataGo worker at 00:00 every day
+
+[Timer]
+OnCalendar=*-*-* 00:00:00
+
+[Install]
+WantedBy=timers.target
