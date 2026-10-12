@@ -69,6 +69,9 @@ this repo's docs, not in an agent's private memory.
   played move (`rateMove`).
   `lib/use-stored.ts` — small settings kept in the browser's localStorage.
   `lib/types.ts` — shared types, tracked people.
+  `lib/usage-stats.ts` — the replayer's usage-statistics events for
+  `public/fuseki-stats.js`, fuseki4_ai's client copied unchanged, which sends
+  only on go-replayer.fuseki.net (PRODUCT.md "Usage statistics").
 - `lib/fetchers/{ogs,kgs,dgs}.ts` — game fetchers per server. OGS's also
   reads each game's API record and writes its end date and move times into
   the stored SGF (`ogsRecord`; PRODUCT.md "What the servers record").
