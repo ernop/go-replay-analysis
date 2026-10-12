@@ -1036,9 +1036,9 @@ number is allowed, and his own viewing is counted too.
   moves) and `src` (`dgs`, `ogs` or `kgs`; seed and uploaded games have
   none), for example `m=review&r=opened&g=403&mv=116&src=dgs`. Single moves
   and steps send nothing.
-- Visitors are not told yet: the app has no help or about text to carry the
-  line, which would read "Usage statistics — a random visitor number, time
-  spent, and which games are opened — are recorded on this site's server."
+- The public copy's header ends with "Usage stats recorded" (owner,
+  2026-10-11: add the line, not wordy). It sits in the header because a
+  footer would push the replayer past its 45px height allowance.
 
 ## Technical decisions
 
@@ -1067,9 +1067,6 @@ number is allowed, and his own viewing is counted too.
   much larger, the publisher should send only changed files (the receiver
   linking the rest from the live release) or precompress the data files
   (nginx `gzip_static`).
-
-- Telling visitors about usage statistics needs a place on the site, which
-  has no help or about text; the line is in "Usage statistics".
 
 - Owner to supply usernames for Me/Carl/Adam/Gary on their servers, and the
   preferred game source to bulk-download from.

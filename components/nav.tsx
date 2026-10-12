@@ -38,6 +38,7 @@ export function Nav() {
             );
           })}
         </nav>
+        {SITE_MODE === "public" && <span className="ml-auto whitespace-nowrap text-foreground">Usage stats recorded</span>}
       </div>
     </header>
   );
