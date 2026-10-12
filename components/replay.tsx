@@ -33,6 +33,7 @@ import {
   type MoveRating,
 } from "@/lib/review";
 import { SITE_MODE } from "@/lib/site-mode";
+import { recordReview } from "@/lib/usage-stats";
 import { useStoredString } from "@/lib/use-stored";
 import type { GameAnalysis, GameDetail, GameStatus, GameSummary, ParsedMove } from "@/lib/types";
 
@@ -396,6 +397,21 @@ export function Replay({ id }: { id: number }) {
       if (progressTimer.current) clearTimeout(progressTimer.current);
     };
   }, [idx, id, detail, moveCount]);
+
+  // Usage statistics: each page view of a game reports its opening once and
+  // its last move's first appearance once, never single moves.
+  const reported = useRef({ opened: false, finished: false });
+  useEffect(() => {
+    if (!detail) return;
+    if (!reported.current.opened) {
+      reported.current.opened = true;
+      recordReview("opened", detail.game, moveCount);
+    }
+    if (moveCount > 0 && idx >= moveCount && !reported.current.finished) {
+      reported.current.finished = true;
+      recordReview("finished", detail.game, moveCount);
+    }
+  }, [detail, idx, moveCount]);
 
   // poll analysis while it's being computed
   useEffect(() => {

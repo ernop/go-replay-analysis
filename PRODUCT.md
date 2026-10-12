@@ -1001,6 +1001,45 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
   inline page-data scripts into `/_scripts/` files, and the page connects only
   to its own origin.
 
+## Usage statistics (decided 2026-10-11)
+
+The owner decided on 2026-10-11 that each app he hosts on fuseki.net reports
+usage statistics to its own server: how many people use it, how long they
+spend, and what they do; for this app, which games are opened and reviewed.
+Pings go only to the page's own origin, nginx writes them to a private log,
+and Fuseki's private analytics worker aggregates them for his staff-only
+dashboard. Nothing goes to any third party. A persistent random player
+number is allowed, and his own viewing is counted too.
+
+- `public/fuseki-stats.js` is fuseki4_ai's `setup/apps/fuseki-stats.js`,
+  copied unchanged: to update it, copy the file again; never edit it here
+  (ESLint skips it). Its server contract is in fuseki4_ai's
+  `docs/deployment.md`. The root layout loads it on every page with
+  `next/script` (`afterInteractive`): the HTML gets only a preload link and
+  the script tag is added after hydration, so the CSP needs no inline
+  script. It sends only on `go-replayer.fuseki.net`; the LAN app, tvnik's
+  test server and local builds send nothing.
+- Every ping is a `GET /_event?…` to the site itself, without cookies or
+  referrer; nginx answers 204. Each carries a random player number kept in
+  the browser (localStorage `fuseki-stats-player`), a random number for the
+  page load, a sequence number, the active seconds since the previous ping
+  (page visible and an input within 5 minutes), and the page path (`/` or
+  `/game/`, never the query string). The module itself sends `play` at a
+  page load's first input (tap, click, key or wheel) unless a game event
+  came first, and `time` when the page is hidden or closed and after every
+  10 active minutes.
+- The replayer adds at most two `game` events each time it opens a game,
+  by a fresh load or from the library (`recordReview` in
+  `lib/usage-stats.ts`, called from `components/replay.tsx`): `r=opened`
+  once the game's data has loaded, and `r=finished` the first time its last
+  move is on the board. Both carry `m=review`, `g` (the game id), `mv` (its
+  moves) and `src` (`dgs`, `ogs` or `kgs`; seed and uploaded games have
+  none), for example `m=review&r=opened&g=403&mv=116&src=dgs`. Single moves
+  and steps send nothing.
+- Visitors are not told yet: the app has no help or about text to carry the
+  line, which would read "Usage statistics — a random visitor number, time
+  spent, and which games are opened — are recorded on this site's server."
+
 ## Technical decisions
 
 - Stack: Next.js (App Router, TypeScript), Tailwind, shadcn/ui primitives,
@@ -1028,6 +1067,9 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
   much larger, the publisher should send only changed files (the receiver
   linking the rest from the live release) or precompress the data files
   (nginx `gzip_static`).
+
+- Telling visitors about usage statistics needs a place on the site, which
+  has no help or about text; the line is in "Usage statistics".
 
 - Owner to supply usernames for Me/Carl/Adam/Gary on their servers, and the
   preferred game source to bulk-download from.

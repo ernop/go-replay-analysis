@@ -60,12 +60,14 @@ DGS_PASSWD=your-dgs-password
 
 ## Publish the public copy
 
-https://go-replayer.fuseki.net/ is a read-only copy anyone can open: every game,
-the same review screen, and each visitor's seen/unseen progress kept in their own
-browser. Only this PC can update it, and it does so by itself: a systemd user
-timer checks every minute, publishes each push to GitHub's `main` at once, and
-publishes new analysis (or new games and tags) at most every 30 minutes. To
-publish by hand:
+https://go-replayer.fuseki.net/ is a read-only copy anyone can open: every game
+reviewed in full, the same review screen, and each visitor's seen/unseen progress
+kept in their own browser. It records usage statistics (a random visitor number,
+time spent, which games are opened) on its own server only; the LAN app sends
+none (PRODUCT.md "Usage statistics"). Only this PC can update it, and it does so
+by itself: a systemd user timer checks every minute, publishes each push to
+GitHub's `main` at once, and publishes new analysis (or new games and tags) at
+most every 30 minutes. To publish by hand:
 
 ```bash
 npm run publish:public    # committed code + a snapshot of data/go-replay.db

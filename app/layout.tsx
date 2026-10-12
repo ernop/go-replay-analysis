@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 
@@ -13,6 +14,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <Nav />
         <main className="flex-1 w-full px-2 py-2 sm:px-4 md:px-6">{children}</main>
+        {/* Usage statistics, sent only on go-replayer.fuseki.net (PRODUCT.md "Usage statistics"). The file is
+            fuseki4_ai's setup/apps/fuseki-stats.js, copied unchanged. */}
+        <Script src="/fuseki-stats.js" strategy="afterInteractive" />
       </body>
     </html>
   );
