@@ -193,15 +193,18 @@ left to do; `--no-deepen` leaves shallower analyses alone.
 A worker started from a chat's or terminal's shell dies with it. On the PC
 the worker is the systemd user service `go-replay-analyzer` (the command
 above with `--once`; unit in `deploy/systemd/go-replay-analyzer.service`,
-installed in `~/.config/systemd/user/`, enabled since 2026-10-06). It
-starts at boot, so a run a reboot interrupted carries on; it restarts
-itself if KataGo dies, and it exits, freeing the GPU, when nothing is
-queued. After queueing more games: `systemctl --user start
-go-replay-analyzer`. Log: `journalctl --user -u go-replay-analyzer`. Stop:
-`systemctl --user stop go-replay-analyzer`. Schedule (since 2026-10-08): user
-timers `go-replay-analyzer-start.timer` (00:00) and
-`go-replay-analyzer-stop.timer` (07:00) start and stop the service daily
-(units in `deploy/systemd/`, installed in `~/.config/systemd/user/`). The game it was on stays
+installed in `~/.config/systemd/user/`, not enabled at login). **Absolute
+rule (owner, 2026-10-08): it runs only between 00:00 and 07:00, never outside
+that window, and this overrides any concern about interrupting a run.**
+`go-replay-analyzer-start.timer` (00:00) starts it, `go-replay-analyzer-stop.timer`
+(07:00) stops it, and `ExecCondition=` in the unit skips any start at hours
+07-23, so a login, a reboot, `systemctl --user start` or a restart cannot run
+it outside the window. Do not enable it for `default.target` and do not remove
+the `ExecCondition=`. It restarts itself if KataGo dies, and it exits, freeing
+the GPU, when nothing is queued. Games queued by day wait for 00:00. Log:
+`journalctl --user -u go-replay-analyzer`. Stop:
+`systemctl --user stop go-replay-analyzer`. Timer units are in
+`deploy/systemd/`, installed in `~/.config/systemd/user/`. The game it was on stays
 `running` until the 15-minute rule above hands it out again.
 
 API routes have no authentication. Acceptable on the home LAN only; add auth
@@ -288,8 +291,8 @@ Convert only at the display layer, and follow these rules:
   games, newest first (game 399 first), then his 23×23 and 25×25 games (52,
   53, 36, 508, 515), then the 19 Super Go games still waiting: about 98
   hours at 10,000 visits, roughly 100 games a day. The LAN app and the
-  worker became enabled user services that day, so a reboot only pauses
-  the run (see "Running"). The KataGo builds in
+  LAN app became an enabled user service that day; the worker runs only 00:00-07:00
+  (see "Running"). The KataGo builds in
   `~/katago` are release builds, which stop at 19×19, so the big-board games
   are expected to end in `error` (the worker moves on) until KataGo's
   `+bs50` build is used for them (PRODUCT.md "Analysis pipeline").
