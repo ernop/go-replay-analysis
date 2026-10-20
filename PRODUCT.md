@@ -436,8 +436,9 @@ questions:
 - **The same number has the same colour** (2026-10-20; the owner, seeing
   two circles that both said "0" in two greens: "IF there are two circles
   both saying "0", WHY and how can it be possible that they have different
-  colors? come on"). A colour comes from the number as written, never from
-  the unrounded value behind it.
+  colors? come on"; and later "restore the rule: don't let them
+  diverge"). A colour comes from the number as written and nothing else:
+  not the unrounded value behind it, and not the other moves on the board.
 - **One mark per move, on the move.** Each rated move shows its colour once,
   in the badge that holds its number. An option's badge is centred on its own
   point, so its place alone says which point it marks, and is a plain
@@ -511,12 +512,24 @@ or with the last-move button; there is no reveal button.
   first half `#8fd957` and `#ecea6a`. That gradient had replaced
   ogatak-clear's `green_red`, whose orange and dark red read as brown (the
   owner: "green to subtle red, no browns"). Every stop is light enough to
-  stand off the wood and to carry black text. Colours are interpolated in
-  linear sRGB, with the scale ending at the worst shown move (minimum 0.5
-  points). Both the move's points and the scale's end count as written
-  (`pointsLabel`), so moves showing the same number share a colour: until
-  2026-10-20 a move 0.04 behind the best was written "0" but coloured a
-  lighter green than the best move's "0".
+  stand off the wood and to carry black text.
+- **A fixed colour scale** (decided 2026-10-20). Each stop belongs to a
+  number of points lost, the same on every board and in both modes: 0
+  green, .1 yellow-green, .25 yellow, .5 orange, and 1 point or more red,
+  interpolated in linear sRGB between them. The number counts as written
+  (`pointsLabel`), so a colour depends on the number shown and nothing
+  else. The stops double from .25 because the numbers on the board spread
+  that way: over ten reviewed games, half the circles after the first were
+  within .4 of the best, three quarters within 1 point, and nine in ten
+  within 2. Before, the scale ended at each board's worst shown move
+  (minimum 0.5 points; ogatak-clear rule 6), and that went wrong twice.
+  The colour was taken from the unrounded value, so a move 0.04 behind
+  the best was written "0" but coloured a lighter green than the best
+  move's "0". And in analysis mode the played move's badge, scaled to the
+  options of the position it was played from, and the circles, scaled to
+  the next move's, showed the same number in two colours on about 1 board
+  in 20 (game 404 move 9: a green ".2" badge beside a yellow "-.2"
+  circle). The owner: "restore the rule: don't let them diverge".
 - In analysis mode each circle holds black text in the page's font: its
   "Delta" (for example "0" or "-.4", this move's score minus the best
   move's, for the side to move), and its visits on a second line only when
@@ -756,9 +769,11 @@ a clean board, then sees how the real move compared.
     under the badge. On a phone the badge is about as big as the square, so
     it covers the stone and little more than the triangle's tip shows; its
     shape and its edge in the mover's colour still mark the move. The whole
-    stone and triangle are back when the rating hides. A move worse than
-    every alternative sets the far end of the colour scale, so it never
-    shares their colour (ogatak-clear rule 6).
+    stone and triangle are back when the rating hides. Its colour is the
+    fixed scale's for its number, like every option's (see "Review
+    screen"); until 2026-10-20 a move worse than every alternative set the
+    far end of a scale of its own, so it never shared their colour
+    (ogatak-clear rule 6).
   - How the played badge got here: from 2026-09-29 it hung from the stone's
     lower right, covering the triangle's square corner, and took another
     corner when the lower right would hide options' badges or points. Until

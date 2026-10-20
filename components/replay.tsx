@@ -150,17 +150,12 @@ function countStones(signMap: number[][], sign: number): number {
   return n;
 }
 
-function candidateMarks(
-  shown: BoardCandidate[],
-  scale: number,
-  size: number,
-  lines: (s: BoardCandidate) => string[]
-): BoardMark[] {
+function candidateMarks(shown: BoardCandidate[], size: number, lines: (s: BoardCandidate) => string[]): BoardMark[] {
   const marks: BoardMark[] = [];
   for (const s of shown) {
     const vertex = gtpToVertex(s.candidate.move, size);
     if (!vertex) continue;
-    marks.push({ vertex, fill: costColour(s.cost, scale), lines: lines(s) });
+    marks.push({ vertex, fill: costColour(s.cost), lines: lines(s) });
   }
   return marks;
 }
@@ -493,18 +488,18 @@ export function Replay({ id }: { id: number }) {
   const withVisits = (label: string, visits: number) => (showVisits ? [label, visitsLabel(visits)] : [label]);
   const badgeLines = (cost: number, visits: number) => withVisits(pointsLabel(cost), visits);
   const playedMark = (r: MoveRating, vertex: [number, number] | null): PlayedMark | null =>
-    vertex && { vertex, fill: costColour(r.playedCost, r.scale), lines: badgeLines(r.playedCost, r.playedVisits) };
+    vertex && { vertex, fill: costColour(r.playedCost), lines: badgeLines(r.playedCost, r.playedVisits) };
   if (mode === "analysis") {
     const infos = positionCandidates(current);
-    const { shown, scale } = selectCandidates(infos, sideToMove, current?.visits ?? 0);
+    const shown = selectCandidates(infos, sideToMove, current?.visits ?? 0);
     const bestLead = infos[0]?.scoreLead ?? 0;
-    marks = candidateMarks(shown, scale, size, (s) =>
+    marks = candidateMarks(shown, size, (s) =>
       withVisits(deltaLabel(bestLead, s.candidate.scoreLead, sideToMove), s.candidate.visits),
     );
     if (lastRating && lastPlayed) played = playedMark(lastRating, lastPlayed.vertex);
   } else if (rating && shownReveal?.on && lastPlayed) {
     const bestFirst = [...rating.alternatives].sort((a, b) => a.cost - b.cost);
-    marks = candidateMarks(bestFirst, rating.scale, size, (s) => badgeLines(s.cost, s.candidate.visits));
+    marks = candidateMarks(bestFirst, size, (s) => badgeLines(s.cost, s.candidate.visits));
     played = playedMark(rating, lastPlayed.vertex);
   }
   // The "lost" readout beside the move counter follows the played badge.
@@ -621,7 +616,7 @@ export function Replay({ id }: { id: number }) {
                       <span
                         className="fs-emph rounded-sm border-2 px-1.5 font-bold tabular-nums text-black"
                         style={{
-                          background: costColour(shownRating.playedCost, shownRating.scale),
+                          background: costColour(shownRating.playedCost),
                           borderColor: SIDE_COLOUR[lastPlayed.color],
                           // A black border would vanish into the panel without a light line round it.
                           boxShadow: "0 0 0 1px #9a9a9a",

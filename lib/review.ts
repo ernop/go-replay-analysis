@@ -42,8 +42,8 @@ export function selectCandidates(
   infos: AnalysisCandidate[],
   side: "B" | "W",
   rootVisits: number
-): { shown: BoardCandidate[]; scale: number } {
-  if (infos.length === 0) return { shown: [], scale: 0.5 };
+): BoardCandidate[] {
+  if (infos.length === 0) return [];
   const bestLead = infos[0].scoreLead;
   const costs = infos.map((c) => candidateCost(bestLead, c.scoreLead, side));
   const minVisits = candidateMinVisits(rootVisits);
@@ -57,7 +57,7 @@ export function selectCandidates(
   infos.forEach((candidate, i) => {
     if (keep.has(i)) shown.push({ candidate, cost: costs[i] });
   });
-  return { shown, scale: Math.max(0.5, ...shown.map((s) => s.cost)) };
+  return shown;
 }
 
 function sameMove(a: string, b: string): boolean {
@@ -93,8 +93,6 @@ export interface MoveRating {
   playedVisits: number;
   /** Points the move threw away, >= 0. */
   playedCost: number;
-  /** Gradient scale; includes the played move, so a move worse than every alternative ends up at the far end. */
-  scale: number;
 }
 
 /** How a played move compares with the options the mover had; null without analysis. */
@@ -108,16 +106,14 @@ export function rateMove(
   if (!parent || infos.length === 0) return null;
   const value = playedMoveValue(parent, child, played);
   if (value === null) return null;
-  const { shown, scale } = selectCandidates(infos, mover, parent.visits);
+  const shown = selectCandidates(infos, mover, parent.visits);
   const bestLead = infos[0].scoreLead;
-  const playedCost = candidateCost(bestLead, value.lead, mover);
   return {
     alternatives: shown.filter((s) => !sameMove(s.candidate.move, played)),
     bestLead,
     playedLead: value.lead,
     playedVisits: value.visits,
-    playedCost,
-    scale: Math.max(scale, playedCost),
+    playedCost: candidateCost(bestLead, value.lead, mover),
   };
 }
 
@@ -148,12 +144,14 @@ export function visitsLabel(visits: number): string {
 
 // Best to worst: green through yellow and orange to a light, pure red, with
 // no brown on the way. Every stop is light enough to stand off the wood and
-// to carry black text.
+// to carry black text. COLOUR_POINTS holds the points lost at which each stop
+// is reached; every loss of 1 point or more is red.
 const GREEN_RED = ["#1fc46a", "#b2e85c", "#ffe24c", "#ff9256", "#ff5e5e"].map((hex) => [
   parseInt(hex.slice(1, 3), 16),
   parseInt(hex.slice(3, 5), 16),
   parseInt(hex.slice(5, 7), 16),
 ]);
+const COLOUR_POINTS = [0, 0.1, 0.25, 0.5, 1];
 
 function toLinear(c: number): number {
   const x = c / 255;
@@ -166,16 +164,15 @@ function toSrgb(x: number): number {
 }
 
 /**
- * Gradient colour for a cost; `scale` is the cost that reaches the last stop.
- * Both count as written (`pointsLabel`), so moves showing the same number
- * always share a colour.
+ * Gradient colour for a number of points lost. It depends on that number
+ * alone, as written (`pointsLabel`), so the same number has the same colour
+ * on every board and in every mode.
  */
-export function costColour(cost: number, scale: number): string {
-  const end = writtenPoints(scale);
-  const t = end > 0 ? Math.min(1, Math.max(0, writtenPoints(cost) / end)) : 0;
-  const scaled = t * (GREEN_RED.length - 1);
-  const i = Math.min(GREEN_RED.length - 2, Math.floor(scaled));
-  const f = scaled - i;
+export function costColour(cost: number): string {
+  const points = writtenPoints(cost);
+  let i = 0;
+  while (i < COLOUR_POINTS.length - 2 && points > COLOUR_POINTS[i + 1]) i++;
+  const f = Math.min(1, Math.max(0, (points - COLOUR_POINTS[i]) / (COLOUR_POINTS[i + 1] - COLOUR_POINTS[i])));
   const rgb = GREEN_RED[i].map((a, k) => {
     const b = GREEN_RED[i + 1][k];
     return toSrgb(toLinear(a) + (toLinear(b) - toLinear(a)) * f);
