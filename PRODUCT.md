@@ -93,6 +93,13 @@ direction").
   on a phone the toolbar is one row that scrolls sideways, so the first game
   starts about 170 px down instead of 450. Up next and notices use 14 px
   text, and the table's column labels are 14 px gold.
+- **The bar is a footer** (2026-10-20; the owner: "move the title "go game
+  replay" and "library" link to the lower right as a footer to the
+  right-side of the page please"). The title and the page links sit at
+  the right end of a 28 px bar under every page, so a page starts with its
+  content: on a phone the replayer starts with the player boxes. The bar
+  is as tall as the top bar was, so the replayer still fills a desktop
+  window exactly, with the bar along its bottom edge.
 
 ## People & accounts
 
@@ -497,14 +504,20 @@ or with the last-move button; there is no reveal button.
   to subtle red, no browns"). Every stop is light enough to stand off the
   wood and to carry black text. Colours are interpolated in linear sRGB, with
   the scale ending at the worst shown move (minimum 0.5 points).
-- In analysis mode each circle holds two lines of black text in the page's
-  font: "Delta" (for example "0" or "-.4", this move's score minus the best
-  move's, for the side to move) and "Visits". This matches the owner's Ogatak
-  setting `numbers: "Delta + Visits"`. Delta had two decimals ("-0.42")
-  until 2026-10-02; it is now written like every other number of points. The text is sized as in Ogatak's
-  `board_font_chooser`, so "999" fills 59% of a square. Guess mode's badges
-  hold the points lost, and the visits only when the viewer asks for them
-  (see "Guess mode").
+- In analysis mode each circle holds black text in the page's font: its
+  "Delta" (for example "0" or "-.4", this move's score minus the best
+  move's, for the side to move), and its visits on a second line only when
+  the "visits" box at the bottom of the panel is ticked. The box is off by
+  default and also governs guess mode's badges (2026-10-20; the owner: "i
+  want to pick or change that to only show the gap/diff. and that also
+  shall be the default"). Until then every circle showed both lines,
+  copying the owner's Ogatak setting `numbers: "Delta + Visits"`. The
+  setting is kept in the browser under a new name, so every browser
+  started again with the difference alone. Delta had two decimals
+  ("-0.42") until 2026-10-02; it is now written like every other number of
+  points. The text is sized as in Ogatak's `board_font_chooser`, so "999"
+  fills 59% of a square. Guess mode's badges hold the points lost (see
+  "Guess mode").
 - A "mode" dropdown chooses what the board shows: `analysis` (these
   circles, for the side to move), `guess` (see "Guess mode"), or `off`
   (stones only; it replaced the "candidates on/off" toggle).
@@ -587,9 +600,15 @@ top to bottom:
     is skipped.
   - "W ahead" / "B ahead" sit on the left, not the right as in Ogatak,
     because at the right edge they collide with the "#move" label.
-- **Library actions:** status, tags, and the engine and visits used.
-- **Badge settings**, in guess mode only, are the last row, below the charts
-  and the library actions (the owner, 2026-09-30: "they should be side by
+- **Library actions:** status and tags. Until 2026-10-20 a line under them
+  held a "← library" link and the engine, its visits per position and the
+  positions analysed ("KataGo · 10,000 visits per position · 291 of 291
+  positions"); the owner: "we don't need that", and the footer already
+  links to the library.
+- **Badge settings** are the last row, below the charts and the library
+  actions. Analysis mode shows only the "visits" box, which applies to
+  both modes (2026-10-20); the rest of this item is guess mode's row
+  (the owner, 2026-09-30: "they should be side by
   side, at the very bottom below the charts. so should the visit boolean
   toggelr"): "played [− 100% +]", "others [− 100% +]" and a "visits"
   checkbox, side by side. Each size is one of five steps, 50, 70, 100, 140
@@ -637,8 +656,8 @@ boxes; and the game info between the boxes.
 
 - On desktop the board takes the viewport height, but never more than
   leaves about 430 px for the panel (`min(100vh − 45px, 100vw − 31rem)`; the
-  45 px is the top bar and the page's vertical padding, 88 px before the top
-  bar shrank on 2026-09-29).
+  45 px is the bar, a footer since 2026-10-20, and the page's vertical
+  padding; 88 px before the bar shrank on 2026-09-29).
   At a 1024 px window that is a 513 px board and a panel wide enough for the
   charts.
 - **The divider** (2026-10-02, the owner: "let me move the divider between
@@ -704,7 +723,9 @@ a clean board, then sees how the real move compared.
     differential on that move"). The "visits" checkbox adds them to every badge,
     the played move's included, as a second line under the points, not bold,
     at 0.8 of their size: an option's own visits, and for the played move
-    the visits of the search its value came from (see "Values").
+    the visits of the search its value came from (see "Values"). Since
+    2026-10-20 the same box governs analysis mode's circles, off by default
+    there too (see "Review screen").
   - The played move's badge is centred on its stone, like an option's on
     its point, so it sits on the move it rates. It is 1.15 times larger
     than an option's, with a 2 px edge in the mover's colour (black or

@@ -12,8 +12,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
-        <Nav />
         <main className="flex-1 w-full px-2 py-2 sm:px-4 md:px-6">{children}</main>
+        <Nav />
         {/* Usage statistics, sent only on go-replayer.fuseki.net (PRODUCT.md "Usage statistics"). The file is
             fuseki4_ai's setup/apps/fuseki-stats.js, copied unchanged. */}
         <Script src="/fuseki-stats.js" strategy="afterInteractive" />

@@ -175,7 +175,7 @@ export function Replay({ id }: { id: number }) {
   const [revealSetting, setRevealSetting] = useStoredString("replay.reveal", DEFAULT_REVEAL);
   const [playedSizeSetting, setPlayedSizeSetting] = useStoredString("replay.playedBadge", "100");
   const [markSizeSetting, setMarkSizeSetting] = useStoredString("replay.otherBadges", "100");
-  const [visitsSetting, setVisitsSetting] = useStoredString("replay.badgeVisits", "0");
+  const [visitsSetting, setVisitsSetting] = useStoredString("replay.visits", "0");
   const [boardShareSetting, setBoardShareSetting] = useStoredString("replay.boardShare", "");
   const [resizingBoard, setResizingBoard] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -483,25 +483,24 @@ export function Replay({ id }: { id: number }) {
   const atEnd = moveCount > 0 && idx >= moveCount;
   const result = atEnd ? gameResult(g.result) : null;
 
-  // Analysis mode's circles carry "Delta + Visits" (the owner's Ogatak
-  // setting); guess mode's badges carry the points lost, and the visits when
-  // the viewer asks for them. The move on the board gets the same badge on
-  // its stone in both modes: in analysis mode beside the next move's circles,
-  // in guess mode among the options it was chosen from.
+  // Analysis mode's circles carry each move's difference from the best;
+  // guess mode's badges carry the points lost. Either way the visits go
+  // under them only when the viewer asks for them. The move on the board gets
+  // the same badge on its stone in both modes: in analysis mode beside the
+  // next move's circles, in guess mode among the options it was chosen from.
   let marks: BoardMark[] = [];
   let played: PlayedMark | null = null;
-  const badgeLines = (cost: number, visits: number) =>
-    showVisits ? [pointsLabel(cost), visitsLabel(visits)] : [pointsLabel(cost)];
+  const withVisits = (label: string, visits: number) => (showVisits ? [label, visitsLabel(visits)] : [label]);
+  const badgeLines = (cost: number, visits: number) => withVisits(pointsLabel(cost), visits);
   const playedMark = (r: MoveRating, vertex: [number, number] | null): PlayedMark | null =>
     vertex && { vertex, fill: costColour(r.playedCost, r.scale), lines: badgeLines(r.playedCost, r.playedVisits) };
   if (mode === "analysis") {
     const infos = positionCandidates(current);
     const { shown, scale } = selectCandidates(infos, sideToMove, current?.visits ?? 0);
     const bestLead = infos[0]?.scoreLead ?? 0;
-    marks = candidateMarks(shown, scale, size, (s) => [
-      deltaLabel(bestLead, s.candidate.scoreLead, sideToMove),
-      visitsLabel(s.candidate.visits),
-    ]);
+    marks = candidateMarks(shown, scale, size, (s) =>
+      withVisits(deltaLabel(bestLead, s.candidate.scoreLead, sideToMove), s.candidate.visits),
+    );
     if (lastRating && lastPlayed) played = playedMark(lastRating, lastPlayed.vertex);
   } else if (rating && shownReveal?.on && lastPlayed) {
     const bestFirst = [...rating.alternatives].sort((a, b) => a.cost - b.cost);
@@ -529,7 +528,7 @@ export function Replay({ id }: { id: number }) {
       {/* Phones show the players above the board; desktop at the top of the panel. */}
       <div className="lg:hidden">{players}</div>
 
-      {/* The board takes the height (45px: the top bar and the page's vertical padding). By default the panel keeps at
+      {/* The board takes the height (45px: the footer bar and the page's vertical padding). By default the panel keeps at
           least about 430px; once the divider is dragged the board takes its share of the row, and 304px is
           PANEL_MIN_PX + DIVIDER_PX. */}
       <div
@@ -778,42 +777,35 @@ export function Replay({ id }: { id: number }) {
               </div>
             )
           )}
-          <div className="fs-caption flex flex-wrap items-center justify-between gap-2">
-            <Link href="/" className="underline">
-              ← library
-            </Link>
-            {analysis && (
-              <span>
-                {analysis.engine} · {analysis.maxVisits.toLocaleString("en-US")} visits per position ·{" "}
-                {analysisProgress} of {analysisTotal} positions
-              </span>
-            )}
-          </div>
         </div>
 
-        {mode === "guess" && (
+        {mode !== "off" && (
           <div className="fs-caption flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#333333] pt-3">
-            <SizeStepper
-              label="played"
-              title="Size of the played move's badge, in percent of the default."
-              value={playedSize}
-              onChange={(v) => {
-                setPlayedSizeSetting(String(v));
-                previewBadges();
-              }}
-            />
-            <SizeStepper
-              label="others"
-              title="Size of the other moves' badges, in percent of the default."
-              value={markSize}
-              onChange={(v) => {
-                setMarkSizeSetting(String(v));
-                previewBadges();
-              }}
-            />
+            {mode === "guess" && (
+              <>
+                <SizeStepper
+                  label="played"
+                  title="Size of the played move's badge, in percent of the default."
+                  value={playedSize}
+                  onChange={(v) => {
+                    setPlayedSizeSetting(String(v));
+                    previewBadges();
+                  }}
+                />
+                <SizeStepper
+                  label="others"
+                  title="Size of the other moves' badges, in percent of the default."
+                  value={markSize}
+                  onChange={(v) => {
+                    setMarkSizeSetting(String(v));
+                    previewBadges();
+                  }}
+                />
+              </>
+            )}
             <label
               className="flex items-center gap-2"
-              title="Also show, under each badge's points, how many visits the engine spent on that move."
+              title="Also show, under each move's points on the board, how many visits the engine spent on that move."
             >
               <input
                 type="checkbox"

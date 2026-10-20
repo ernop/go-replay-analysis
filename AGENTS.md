@@ -56,6 +56,7 @@ this repo's docs, not in an agent's private memory.
   the mover's colour),
   `review-charts.tsx` (canvas ports of
   ogatak-clear's MOVE QUALITY and GAME STATUS, each opening and closing),
+  `nav.tsx` (the footer: title and page links at every page's lower right),
   shadcn primitives in `components/ui/`. The review screen is specified in PRODUCT.md "Review
   screen"; its reference implementation is `~/proj/ogatak-clear/src/modules/`
   (`move_report.js`, `board_drawer.js`, `colour_gradients.js`, `utils.js`).
@@ -233,10 +234,12 @@ Convert only at the display layer, and follow these rules:
   <6 mistake, >=6 blunder.
 - Candidates are shown relative to the best move from this position (0 =
   best), never relative to the global board value. In analysis mode circles
-  carry Ogatak's "Delta + Visits" labels (the owner's Ogatak setting); guess
+  carry the difference from the best move (Ogatak's "Delta"); guess
   mode's badges carry the points lost, the same label as the "lost" readout
-  beside the move counter (visits only if the viewer turns them on), one
-  per move: an option's a plain circle centred on its point, kept off the
+  beside the move counter. In both modes visits show under them only when
+  the viewer ticks "visits", off by default (owner, 2026-10-20: "only show
+  the gap/diff. and that also shall be the default"). Guess mode has one
+  badge per move: an option's a plain circle centred on its point, kept off the
   last-move triangle; the played move's a rounded rectangle, all four
   corners alike, centred on its stone, edged in the mover's colour, as the
   readout is. A border in a player's colour means the move was played:

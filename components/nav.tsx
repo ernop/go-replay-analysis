@@ -17,9 +17,9 @@ const TABS =
 export function Nav() {
   const pathname = usePathname();
   return (
-    // Its height (h-7 plus the border) is part of the replayer's 45px allowance.
-    <header className="w-full border-b border-[#1c1c1c]">
-      <div className="fs-caption flex h-7 items-center gap-4 px-2 sm:px-4 md:px-6">
+    // The page's footer, at its lower right. Its height (h-7 plus the border) is part of the replayer's 45px allowance.
+    <footer className="w-full border-t border-[#1c1c1c]">
+      <div className="fs-caption flex h-7 items-center justify-end gap-4 px-2 sm:px-4 md:px-6">
         <Link href="/" className="whitespace-nowrap font-bold text-gold">
           Go Game Replay
         </Link>
@@ -39,6 +39,6 @@ export function Nav() {
           })}
         </nav>
       </div>
-    </header>
+    </footer>
   );
 }
