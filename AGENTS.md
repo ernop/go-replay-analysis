@@ -292,15 +292,21 @@ Convert only at the display layer, and follow these rules:
   the PC stayed off until 2026-10-05. On 2026-10-06 the LAN app and the
   worker were started again for games 583–602.
 - On 2026-10-06 the owner asked for all of Adam's games to be reviewed and
-  on the public copy. After game 584, the queue holds Adam's 390 unreviewed
-  games, newest first (game 399 first), then his 23×23 and 25×25 games (52,
-  53, 36, 508, 515), then the 19 Super Go games still waiting: about 98
-  hours at 10,000 visits, roughly 100 games a day. The LAN app and the
-  LAN app became an enabled user service that day; the worker runs only 00:00-07:00
-  (see "Running"). The KataGo builds in
-  `~/katago` are release builds, which stop at 19×19, so the big-board games
-  are expected to end in `error` (the worker moves on) until KataGo's
-  `+bs50` build is used for them (PRODUCT.md "Analysis pipeline").
+  on the public copy. His games up to 19×19 were queued newest first, ahead
+  of the 19 Super Go games still waiting, and all of them were reviewed by
+  the night of 2026-10-15 (since 2026-10-08 the worker runs only 00:00-07:00;
+  see "Running"). His 23×23 and 25×25 games (36, 52, 53, 508, 515) ended
+  in `error`: the KataGo builds in `~/katago` are release builds, which stop
+  at 19×19. KataGo's `+bs50` TensorRT build was unpacked in
+  `~/katago/trt-bs50` on 2026-10-11, but the worker does not use it yet; it
+  needs a second engine for boards above 19×19 (PRODUCT.md "Analysis
+  pipeline").
+- On 2026-10-20 the owner's 167 `kouchi` games up to 19×19 were queued,
+  newest first (game 581 first): 24,457 positions, about four nights at
+  ~3.8 s a position. They waited until the public copy named players by
+  handle only, because DGS records the owner under his real name (PRODUCT.md
+  "Public copy"). His games on larger boards (427, 442, 445, 462) also wait
+  for the larger-board engine.
 - Since 2026-10-06 the public copy holds only games reviewed in full at
   10,000 visits (12 then: the 11 below and game 582), and analysis mode
   shows the played move's rating (PRODUCT.md "Public copy", "Review
