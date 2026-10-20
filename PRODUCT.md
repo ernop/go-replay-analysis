@@ -418,14 +418,19 @@ questions:
   marked in light blue, a colour nothing else on the board uses.
 - **One mark per move, on the move.** Each rated move shows its colour once,
   in the badge that holds its number. An option's badge is centred on its own
-  point, so its place alone says which point it marks, and is a circle with
-  a rim in the mover's colour, like the stone that could have gone there; the
-  played move's is a rounded rectangle centred on its stone, edged in the
-  same colour, so it is on the move it rates. Every mark is symmetrical:
-  no corner differs from the others. Every rating's border, the "lost"
-  readout's too, is the colour of the stone it rates. A mark that
-  wanders to wherever there is room, or a second patch of the same colour,
-  reads as clutter.
+  point, so its place alone says which point it marks, and is a plain
+  circle; the played move's is a rounded rectangle centred on its stone,
+  edged in the mover's colour, so it is on the move it rates. Every mark is
+  symmetrical: no corner differs from the others. A mark that wanders to
+  wherever there is room, or a second patch of the same colour, reads as
+  clutter.
+- **A border in a player's colour means "played"** (decided 2026-10-20,
+  replacing 2026-09-30's "every rating's border is the colour of the stone
+  it rates"). The owner: "the played move SHALL have the border of the
+  color of the side which played it; other, shown but not actually played
+  in the end moves shall not have such a border". The played move's badge
+  and the "lost" readout are edged in the mover's colour; guess mode's
+  options and analysis mode's circles have no border.
 - **Readable at a glance on a phone, before tidy.** A number on the board
   that needs squinting might as well be absent. Marks shrunk to look neat on
   19 px phone squares were rejected the same day; guess mode's badges keep
@@ -670,13 +675,13 @@ a clean board, then sees how the real move compared.
     position (the engine's first move plus the 5 lowest-cost moves, with the
     same visit minimum), minus the point that was played. Each is one
     circle in its gradient colour, centred on the point's line crossing,
-    just big enough to keep the text's ink 5% of the font size inside its
-    1 px edge and never narrower than a one-line badge is tall (1.25 times
-    the font size): a "0" and a ".3" are about the same size, a "2.3" a
-    little bigger. Round it runs a rim, 0.12 of the font size and never
-    under 2 px, solid in the colour of the stone the mover would have
-    played there: black for Black's options, white for White's (the 1 px
-    edge is that colour too). The badge holds the points it loses against
+    just big enough to keep the text's ink 5% of the font size and a pixel
+    inside its edge, and never narrower than a one-line badge is tall (1.25
+    times the font size): a "0" and a ".3" are about the same size, a "2.3"
+    a little bigger. It has no border, because only the played move's badge
+    has one (see "The replayer's direction"); from 2026-09-30 to 2026-10-20
+    a rim 0.12 of the font size ran round each option, solid in the mover's
+    colour. The badge holds the points it loses against
     the best move: bold black text, one decimal without a leading zero
     (".3", "2.3"), whole points from 10 up ("12"), "0" for the best.
     There is no other mark on the point. The number is unsigned, like the
@@ -690,7 +695,7 @@ a clean board, then sees how the real move compared.
   - The played move's badge is centred on its stone, like an option's on
     its point, so it sits on the move it rates. It is 1.15 times larger
     than an option's, with a 2 px edge in the mover's colour (black or
-    white, like the options' rims), so it is the first number the eye
+    white), the only badge with a border, so it is the first number the eye
     finds, and it is a rectangle with all four corners rounded alike, which
     tells it from the options' circles. On a 1920 px screen it fits inside
     the stone, which shows round it as a ring, and the last-move triangle
@@ -731,17 +736,15 @@ a clean board, then sees how the real move compared.
     square, so a neighbour to the left or above may reach into the part of
     the square the triangle leaves empty.
     Neither push is more than 30% of the badge's width, so each still
-    covers its own crossing, and the board's edge holds them in, rims
-    included. The rims are drawn as one layer under every badge, so they
-    take no room in this placing and never cover a number, and where they
-    meet they merge into one band. Any overlap left is drawn
-    with the option that loses least on top. At the default size a phone's
-    badges keep every number whole even three in a row beside the played
-    stone (game 404 move 119), overlapping only at their margins. With two
-    lines (visits shown), or at large sizes, numbers there can still be
-    clipped, because a circle holding two lines is about 30 px across (34
-    with its rim) on a 19 px square. With the played badge centred on its
-    stone (2026-10-02), move 119's row still reads whole on a phone: the
+    covers its own crossing, and the board's edge holds them in. Any
+    overlap left is drawn with the option that loses least on top; with no
+    borders, only their colours tell overlapping options apart. At the
+    default size a phone's badges keep every number whole even three in a
+    row beside the played stone (game 404 move 119), overlapping only at
+    their margins. With two lines (visits shown), or at large sizes,
+    numbers there can still be clipped, because a circle holding two lines
+    is about 30 px across on a 19 px square. With the played badge centred
+    on its stone (2026-10-02), move 119's row still reads whole on a phone: the
     option beside the stone just touches the badge. The played badge is
     drawn above them all.
   - How it got here: until 2026-09-29 these were stone-sized circles like
@@ -766,7 +769,8 @@ a clean board, then sees how the real move compared.
     color of the stone they're evaluating". Translucent black over the
     wood read as a brown shadow rather than a black stone, so the rims
     became solid, and the played move's edge, until then black for both
-    sides, took the mover's colour.
+    sides, took the mover's colour. On 2026-10-20 the options' rims went,
+    so that a border in the mover's colour marks only the move played.
   - Next to the move counter: "lost .3", the board's label for the played
     move (one decimal without a leading zero, whole points from 10 up;
     until 2026-09-30 it had two decimals, "0.30"), black on the move's
@@ -936,6 +940,13 @@ they haven't". The owner named the host `go-replayer.fuseki.net`.
   >= 10,000; `PUBLIC_MIN_VISITS` in `lib/game-data.ts`). Games queued or
   being analysed, and the library's unanalysed games, stay on the LAN app.
   The site has the same library filters and review screen as the LAN app.
+- **Players are published by handle only** (2026-10-20). The screen has
+  always shown handles only, but until then the site's data files carried
+  DGS's full "Real Name (handle)" strings, so anyone reading
+  `/data/library.json` could see real names, the owner's included. The
+  public build now writes only the handle (`forThisSite` in
+  `lib/game-data.ts`); the LAN app keeps the full names, so its search
+  still finds them.
 - Each visitor's status (new, skipped, played, done), last viewed move and
   watched-to-end live only in their browser (localStorage key
   `go-replayer.progress`); reaching the last move marks a new or skipped game

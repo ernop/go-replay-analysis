@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { getAnalysis, listAccounts, rowToSummary, type GameRow } from "@/lib/db";
-import type { LibraryData } from "@/lib/library";
+import { handleOf, type LibraryData } from "@/lib/library";
 import { candidateMinVisits } from "@/lib/review";
 import { parseSgf } from "@/lib/sgf";
 import { SITE_MODE } from "@/lib/site-mode";
@@ -20,10 +20,19 @@ function onThisSite(row: GameRow): boolean {
 /**
  * The public copy publishes the games, not the owner's viewing progress; each
  * visitor starts every game new and keeps progress in their own browser.
+ * Players are published by handle only, as the screen shows them: DGS names
+ * them "Real Name (handle)", and real names stay off the public site.
  */
 function forThisSite(summary: GameSummary): GameSummary {
   return SITE_MODE === "public"
-    ? { ...summary, status: "new", lastViewedMove: 0, watchedToEnd: false }
+    ? {
+        ...summary,
+        black: handleOf(summary.black),
+        white: handleOf(summary.white),
+        status: "new",
+        lastViewedMove: 0,
+        watchedToEnd: false,
+      }
     : summary;
 }
 

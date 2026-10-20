@@ -41,8 +41,9 @@ this repo's docs, not in an agent's private memory.
  filters and how players and dates are shown (`handleOf`, `playedOn`,
  `finishedOn`, shared by the library and the replayer); `lib/game-data.ts` builds the read routes'
  data, which in the public copy holds only games reviewed in full
- (`PUBLIC_MIN_VISITS`, 10,000 visits) and only the moves the review screen
- can show (`analysisForThisSite`; PRODUCT.md "Public copy").
+ (`PUBLIC_MIN_VISITS`, 10,000 visits), only the moves the review screen
+ can show (`analysisForThisSite`), and players by handle only
+ (`forThisSite`; PRODUCT.md "Public copy").
 - `components/` — `replay.tsx` (replayer: player boxes, big one-move
   controls, board modes, guess mode's timing, its "show analysis" override
   button and its badge settings row, the "info" card with komi, captures
@@ -50,9 +51,9 @@ this repo's docs, not in an agent's private memory.
   width),
   `goban.tsx` (canvas board, Ogatak look; stones on one canvas, candidate
   marks on a layer above that guess mode fades: analysis mode's circles, or
-  guess mode's badges, the options' circles rimmed in the mover's colour
-  and centred on their points, and the played move's a rounded rectangle
-  centred on its stone, edged in the same colour),
+  guess mode's badges, the options' plain circles centred on their points,
+  and the played move's a rounded rectangle centred on its stone, edged in
+  the mover's colour),
   `review-charts.tsx` (canvas ports of
   ogatak-clear's MOVE QUALITY and GAME STATUS, each opening and closing),
   shadcn primitives in `components/ui/`. The review screen is specified in PRODUCT.md "Review
@@ -235,11 +236,12 @@ Convert only at the display layer, and follow these rules:
   carry Ogatak's "Delta + Visits" labels (the owner's Ogatak setting); guess
   mode's badges carry the points lost, the same label as the "lost" readout
   beside the move counter (visits only if the viewer turns them on), one
-  per move: an option's a circle centred on its point, with a solid rim in
-  the colour of the stone that would have gone there (under every badge, so
-  it never covers a number), and kept off the last-move triangle; the
-  played move's a rounded rectangle, all four corners alike, centred on its
-  stone, edged in the mover's colour, as the readout is. Analysis mode
+  per move: an option's a plain circle centred on its point, kept off the
+  last-move triangle; the played move's a rounded rectangle, all four
+  corners alike, centred on its stone, edged in the mover's colour, as the
+  readout is. A border in a player's colour means the move was played:
+  options and analysis mode's circles have none (owner, 2026-10-20).
+  Analysis mode
   gives the move on the board the same badge and readout, beside the next
   move's circles, for as long as the move is on the board; for a move the
   search barely visited, the value is the following position's own

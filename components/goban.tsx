@@ -32,7 +32,7 @@ interface GobanProps {
   /** Badge sizes as multiples of the default: the candidates', and the played move's. */
   markScale?: number;
   playedScale?: number;
-  /** Whose move the badges rate: they are edged in that stone's colour, black when not given. */
+  /** Who played the move the played badge rates: it is edged in that stone's colour, black when not given. */
   markSide?: "B" | "W";
   /** A new key starts a fresh marks layer, restarting any animation in `marksClassName`. */
   marksKey?: string | number;
@@ -71,12 +71,11 @@ const VISITS_FONT = 0.8;
 const BADGE_NUDGE = 0.3;
 /**
  * A candidate's badge is a circle just big enough to keep its text INK_GAP of
- * the font size inside its edge. Every badge is edged in the colour of the
- * stone it rates (SIDE_COLOUR): a candidate's by a rim RIM_WIDTH of the font
- * size wide, never under 2px, and the played move's by a 2px line.
+ * the font size inside its edge, with no border. Only the played move's badge
+ * has one, a 2px line in the colour of the stone that was played
+ * (SIDE_COLOUR): a border in a player's colour means the move was played.
  */
 const INK_GAP = 0.05;
-const RIM_WIDTH = 0.12;
 export const SIDE_COLOUR = { B: "#0a0a0a", W: "#ffffff" };
 
 interface Rect {
@@ -325,11 +324,9 @@ export function Goban({
         return;
       }
 
-      // A candidate's badge is a circle whose 1px edge stays INK_GAP clear of
-      // every line's ink, and never narrower than a one-line badge is tall
-      // (r is the radius inside that edge). The rim goes under every badge,
-      // so it takes no room and never covers a number.
-      const rim = Math.max(2, Math.round(markFont * RIM_WIDTH));
+      // A candidate's badge is a circle whose outermost pixel stays INK_GAP
+      // clear of every line's ink, and never narrower than a one-line badge
+      // is tall (r is the radius inside that pixel).
       const gap = INK_GAP * markFont;
       const optionShape = (lines: string[]) => {
         const t = measure(lines, markFont);
@@ -347,7 +344,7 @@ export function Goban({
       // points, and any reaching into the last-move mark or the played move's
       // badge are pushed back off them; never by more than BADGE_NUDGE of
       // their size, so each still sits on its own point. The board's edge
-      // holds them in, rims and all.
+      // holds them in.
       const cands = shown.map((m) => {
         const { w, h, sub, offsets } = optionShape(m.lines);
         // Centred on the middle of the point's gridline pixels.
@@ -359,8 +356,8 @@ export function Goban({
       const place = (c: Cand, x: number, y: number) => {
         const dx = BADGE_NUDGE * c.w;
         const dy = BADGE_NUDGE * c.h;
-        c.x = Math.max(rim, Math.min(px - rim - c.w, Math.max(c.homeX - dx, Math.min(c.homeX + dx, x))));
-        c.y = Math.max(rim, Math.min(px - rim - c.h, Math.max(c.homeY - dy, Math.min(c.homeY + dy, y))));
+        c.x = Math.max(0, Math.min(px - c.w, Math.max(c.homeX - dx, Math.min(c.homeX + dx, x))));
+        c.y = Math.max(0, Math.min(px - c.h, Math.max(c.homeY - dy, Math.min(c.homeY + dy, y))));
       };
       // Moves `c` away from `other` along one axis, the two sharing the move; with no `other`, off the last-move mark or the played move's badge, which stay.
       const separate = (c: Cand, other: Cand | null, towardX: number, towardY: number, ox: number, oy: number) => {
@@ -447,26 +444,14 @@ export function Goban({
         }
         if (positions() === before) break;
       }
-      // Every rim first, so none covers another badge.
-      ctx.beginPath();
-      for (const c of cands) {
-        const r = c.w / 2 + rim;
-        ctx.moveTo(c.x + c.w / 2 + r, c.y + c.h / 2);
-        ctx.arc(c.x + c.w / 2, c.y + c.h / 2, r, 0, Math.PI * 2);
-      }
-      ctx.fillStyle = side;
-      ctx.fill();
       // Drawn last mark first, so where badges still overlap the first mark's is on top.
       for (const c of [...cands].reverse()) {
         const cx = c.x + c.w / 2;
         const cy = c.y + c.h / 2;
         ctx.beginPath();
-        ctx.arc(cx, cy, c.w / 2 - 0.5, 0, Math.PI * 2);
+        ctx.arc(cx, cy, c.w / 2, 0, Math.PI * 2);
         ctx.fillStyle = c.m.fill;
         ctx.fill();
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = side;
-        ctx.stroke();
         writeLines(c.m.lines, cx, cy, markFont, c.sub, c.offsets);
       }
 
