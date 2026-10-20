@@ -430,9 +430,14 @@ questions:
   zero (".3", "-.5", "B+2.4"), whole points from 10 up ("12"). That holds
   for guess mode's badges and "lost" readout, analysis mode's circles, and
   the charts' hover values alike (`pointsLabel` in `lib/review.ts`).
-- **A calm colour language.** Good is green, bad a soft red, and nothing in
-  between looks muddy. Red is for bad moves only: the move just played is
-  marked in light blue, a colour nothing else on the board uses.
+- **A calm colour language.** Good is green, bad a light, pure red, and
+  nothing in between looks muddy. Red is for bad moves only: the move just
+  played is marked in light blue, a colour nothing else on the board uses.
+- **The same number has the same colour** (2026-10-20; the owner, seeing
+  two circles that both said "0" in two greens: "IF there are two circles
+  both saying "0", WHY and how can it be possible that they have different
+  colors? come on"). A colour comes from the number as written, never from
+  the unrounded value behind it.
 - **One mark per move, on the move.** Each rated move shows its colour once,
   in the badge that holds its number. An option's badge is centred on its own
   point, so its place alone says which point it marks, and is a plain
@@ -498,12 +503,20 @@ or with the last-move button; there is no reveal button.
   visits, which is 10 at 1,000 visits and 50 at 5,000.
 - Analysis mode's circles are stone-sized, as in Ogatak; guess mode uses
   badges instead (see "Guess mode"). All are filled from one
-  best-to-worst gradient: green `#1fc46a`, `#8fd957`, yellow `#ecea6a`, light
-  orange `#fbb870`, and a soft red `#f47c7c`. It replaced ogatak-clear's `green_red`
-  on 2026-09-29, whose orange and dark red read as brown (the owner: "green
-  to subtle red, no browns"). Every stop is light enough to stand off the
-  wood and to carry black text. Colours are interpolated in linear sRGB, with
-  the scale ending at the worst shown move (minimum 0.5 points).
+  best-to-worst gradient: green `#1fc46a`, yellow-green `#b2e85c`, yellow
+  `#ffe24c`, orange `#ff9256`, and a light, pure red `#ff5e5e`. These
+  stops date from 2026-10-20 (the owner: "let's use a more reddish
+  gradient. still light and pure of course"); from 2026-09-29 the second
+  half was a pale light orange `#fbb870` and a soft red `#f47c7c`, and the
+  first half `#8fd957` and `#ecea6a`. That gradient had replaced
+  ogatak-clear's `green_red`, whose orange and dark red read as brown (the
+  owner: "green to subtle red, no browns"). Every stop is light enough to
+  stand off the wood and to carry black text. Colours are interpolated in
+  linear sRGB, with the scale ending at the worst shown move (minimum 0.5
+  points). Both the move's points and the scale's end count as written
+  (`pointsLabel`), so moves showing the same number share a colour: until
+  2026-10-20 a move 0.04 behind the best was written "0" but coloured a
+  lighter green than the best move's "0".
 - In analysis mode each circle holds black text in the page's font: its
   "Delta" (for example "0" or "-.4", this move's score minus the best
   move's, for the side to move), and its visits on a second line only when
@@ -515,9 +528,15 @@ or with the last-move button; there is no reveal button.
   setting is kept in the browser under a new name, so every browser
   started again with the difference alone. Delta had two decimals
   ("-0.42") until 2026-10-02; it is now written like every other number of
-  points. The text is sized as in Ogatak's `board_font_chooser`, so "999"
-  fills 59% of a square. Guess mode's badges hold the points lost (see
-  "Guess mode").
+  points. With the points alone, the number is bold and 0.44 of a square
+  tall (24 px on a 1920 px screen's 54 px squares), never under 12 px, and
+  smaller only when the widest label on the board would not fit within
+  84% of its circle; every circle on a board uses the same size (2026-10-20;
+  the owner: "the number font is a bit small eh?"). Until then it was not
+  bold and about 0.35 of a square, under 7 px on a phone. With visits
+  shown, both lines keep Ogatak's `board_font_chooser` size ("999" fills
+  59% of a square), the points in bold. Guess mode's badges hold the points
+  lost (see "Guess mode").
 - A "mode" dropdown chooses what the board shows: `analysis` (these
   circles, for the side to move), `guess` (see "Guess mode"), or `off`
   (stones only; it replaced the "candidates on/off" toggle).

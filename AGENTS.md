@@ -256,8 +256,10 @@ Convert only at the display layer, and follow these rules:
   Which moves appear is Ogatak's count mode, the
   best plus the 5 lowest-cost moves with at least 1% of the position's
   visits. Details and reasons: PRODUCT.md "Review screen".
-- One continuous best→worst gradient, green to a soft red with no browns
-  (`lib/review.ts`); no special colour for the top move.
+- One continuous best→worst gradient, green to a light, pure red with no
+  browns (`lib/review.ts`); no special colour for the top move. A colour
+  comes from the number as written, so the same number always has the same
+  colour within one scale (owner, 2026-10-20).
 - The last move is a light blue triangle in the lower-right corner of its
   square, its short sides 0.6 of the square (`LAST_MOVE_SIZE`), over the
   stone, in every mode. Not Ogatak's red dot: the owner dislikes red there

@@ -64,6 +64,14 @@ const BADGE_FONT = 0.4;
 const BADGE_MIN_PX = 12;
 const PLAYED_SCALE = 1.15;
 const VISITS_FONT = 0.8;
+/**
+ * Analysis mode's circles, when they hold only the points: bold text
+ * CIRCLE_FONT of a square tall and never under BADGE_MIN_PX, made smaller
+ * only so the widest label on the board stays within CIRCLE_TEXT_WIDTH of
+ * the circle. Every circle on the board uses the same size.
+ */
+const CIRCLE_FONT = 0.44;
+const CIRCLE_TEXT_WIDTH = 0.84;
 /** How far a candidate's badge may be pushed off its point's centre, as a share of its width. */
 const BADGE_NUDGE = 0.3;
 /**
@@ -297,10 +305,17 @@ export function Goban({
       };
 
       if (!badges) {
-        // ogatak board_font_chooser: "999" fills 59% of a square.
-        const font = (n: number) => `${n}px ${family}`;
-        ctx.font = font(fitFontPx(ctx, font, 0.59 * square, ["999"]));
-        for (const m of marks.filter(onEmpty)) {
+        const plain = (n: number) => `${n}px ${family}`;
+        const bold = (n: number) => `bold ${n}px ${family}`;
+        const twoLines = shown.some((m) => m.lines.length >= 2);
+        // Two lines follow ogatak board_font_chooser: "999" fills 59% of a square.
+        const fontPx = twoLines
+          ? fitFontPx(ctx, plain, 0.59 * square, ["999"])
+          : Math.min(
+              Math.round(Math.max(BADGE_MIN_PX, CIRCLE_FONT * square)),
+              fitFontPx(ctx, bold, CIRCLE_TEXT_WIDTH * square, shown.map((m) => m.lines[0] ?? "")),
+            );
+        for (const m of shown) {
           const cx = centre(m.vertex[0]);
           const cy = centre(m.vertex[1]);
           ctx.beginPath();
@@ -309,10 +324,13 @@ export function Goban({
           ctx.fill();
           ctx.fillStyle = "#000000";
           if (m.lines.length >= 2) {
+            ctx.font = bold(fontPx);
             ctx.fillText(m.lines[0], cx, cy - square / 6 + 0.5);
+            ctx.font = plain(fontPx);
             ctx.fillText(m.lines[1], cx, cy + square / 6 + 1.5);
           } else if (m.lines.length === 1) {
-            ctx.fillText(m.lines[0], cx, cy + 2);
+            const dy = ink(m.lines[0], bold(fontPx)).dy;
+            ctx.fillText(m.lines[0], cx, cy + dy);
           }
         }
         drawPlayed();

@@ -127,6 +127,11 @@ export function pointsLabel(points: number): string {
   return Number(text) === 0 ? "0" : text.replace(/^0\./, ".");
 }
 
+/** The value `pointsLabel` writes, as a number. */
+function writtenPoints(points: number): number {
+  return Number(points.toFixed(points >= 9.95 ? 0 : 1));
+}
+
 /** ogatak "Delta": this move's score minus the best move's, for the side to move ("-.3", "+1.2"); "0" when it rounds to nothing. */
 export function deltaLabel(bestLead: number, lead: number, side: "B" | "W"): string {
   const val = side === "B" ? lead - bestLead : bestLead - lead;
@@ -141,10 +146,10 @@ export function visitsLabel(visits: number): string {
   return String(visits);
 }
 
-// Best to worst: green through yellow and light orange to a soft red, with no
-// brown on the way. Every stop is light enough to stand off the wood and to
-// carry black text.
-const GREEN_RED = ["#1fc46a", "#8fd957", "#ecea6a", "#fbb870", "#f47c7c"].map((hex) => [
+// Best to worst: green through yellow and orange to a light, pure red, with
+// no brown on the way. Every stop is light enough to stand off the wood and
+// to carry black text.
+const GREEN_RED = ["#1fc46a", "#b2e85c", "#ffe24c", "#ff9256", "#ff5e5e"].map((hex) => [
   parseInt(hex.slice(1, 3), 16),
   parseInt(hex.slice(3, 5), 16),
   parseInt(hex.slice(5, 7), 16),
@@ -160,9 +165,14 @@ function toSrgb(x: number): number {
   return Math.max(0, Math.min(255, Math.round(y * 255)));
 }
 
-/** Gradient colour for a cost; `scale` is the cost that reaches the last stop. */
+/**
+ * Gradient colour for a cost; `scale` is the cost that reaches the last stop.
+ * Both count as written (`pointsLabel`), so moves showing the same number
+ * always share a colour.
+ */
 export function costColour(cost: number, scale: number): string {
-  const t = scale > 0 ? Math.min(1, Math.max(0, cost / scale)) : 0;
+  const end = writtenPoints(scale);
+  const t = end > 0 ? Math.min(1, Math.max(0, writtenPoints(cost) / end)) : 0;
   const scaled = t * (GREEN_RED.length - 1);
   const i = Math.min(GREEN_RED.length - 2, Math.floor(scaled));
   const f = scaled - i;
