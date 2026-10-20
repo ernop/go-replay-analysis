@@ -1061,9 +1061,10 @@ number is allowed, and his own viewing is counted too.
   moves) and `src` (`dgs`, `ogs` or `kgs`; seed and uploaded games have
   none), for example `m=review&r=opened&g=403&mv=116&src=dgs`. Single moves
   and steps send nothing.
-- The public copy's header ends with "Usage stats recorded" (owner,
-  2026-10-11: add the line, not wordy). It sits in the header because a
-  footer would push the replayer past its 45px height allowance.
+- No notice on screen says statistics are recorded (owner, 2026-10-20:
+  "remove "Usage stats recorded""). From 2026-10-11 until then the public
+  copy's header ended with that line (owner, 2026-10-11: add the line, not
+  wordy).
 
 ## Technical decisions
 
