@@ -407,6 +407,16 @@ questions:
 - **Paused means still.** Pausing is how the owner stops to look, so while
   autoplay is paused nothing on the board changes by itself: what shows
   stays, what is hidden stays hidden, until he acts.
+- **Nothing fades** (2026-10-20). The owner: "remove all fade-in of ev
+  values; they shall appear instantly just as the move appears instantly.
+  in general, fade-in is hateful and unacceptable to me across most
+  contexts." What appears, appears at once, and what goes, goes at once:
+  a move's rating lands in the same frame as its stone and hides in one
+  frame, and menus and dialogs open and close without fading, zooming or
+  sliding. Motion that carries information stays, like autoplay's
+  countdown bar. Buttons' and fields' hover and focus colours still ease
+  over about 0.15 s (shadcn's default), since that is a control changing
+  colour, not something appearing.
 - **Numbers must be trustworthy, and few.** An option backed by 40 visits is
   noise. On the board, guess mode says only how much worse each option was.
   Points read the same wherever they appear: one decimal and no leading
@@ -665,8 +675,11 @@ a clean board, then sees how the real move compared.
 
 - **Before a move:** stones and the last-move triangle only. Nothing on the board
   depends on the next move.
-- **When a move lands**, the stone appears first and about 0.2 s later the
-  rating fades in. Since 2026-09-29 this happens whichever way the viewer got
+- **When a move lands**, its rating appears with the stone, in the same
+  frame (2026-10-20; the owner: "remove all fade-in of ev values; they
+  shall appear instantly just as the move appears instantly"). Until then
+  the rating faded in about 0.2 s after the stone, so the stone could be
+  seen first. Since 2026-09-29 this happens whichever way the viewer got
   there: stepping forward or back, autoplay, or any jump or chart click (the
   owner: "when i hit 'back 1' i.e. left arrow, we shall act as if this was a
   newly shown move"). Before, going back showed a clean board. Opening a game
@@ -725,7 +738,7 @@ a clean board, then sees how the real move compared.
     rating again and restarts its time, so on a wide screen, where the
     board stays beside the panel, the effect is in view. On a phone the row
     is at the bottom of the page; after scrolling up during autoplay, a
-    timed rating may have faded, and a tap on the board shows it again.
+    timed rating may have gone, and a tap on the board shows it again.
   - Placement: an option's badge is centred on the middle of its crossing's
     1 px lines. Where two options' circles would overlap, they are pushed
     apart along the line between their points; diagonal neighbours whose
@@ -782,8 +795,9 @@ a clean board, then sees how the real move compared.
 - **How long:** "show analysis [3 s]" (named "reveal" until 2026-09-29):
   0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15 or 20 s, "until next move", or
   "hold till accepted". The default 3 s is the owner's "momentarily". A timed
-  rating counts from when it has fully faded in, then fades out over 0.5 s.
-  The time runs only during autoplay.
+  rating counts from the moment its move lands and goes at once when its
+  time is up (until 2026-10-20 it faded out over 0.5 s). The time runs
+  only during autoplay.
 - **Paused, nothing hides by itself** (2026-10-02; the owner: "when i
   pause, i shall never then hide the analysis info. pausing shall keep it
   in the saem state."). While autoplay is paused, or was never started, a
@@ -801,7 +815,7 @@ a clean board, then sees how the real move compared.
   rating stays up until the next move lands, as with "until next move",
   whatever the setting says; the setting gives way to the words "until next
   move", and autoplay never holds. Pressed again, the setting applies from
-  that moment: a timed rating fades after its time once autoplay runs, and
+  that moment: a timed rating hides after its time once autoplay runs, and
   "hold till accepted" holds autoplay again. It is a quick override, not a setting, so
   it is not saved: opening a game starts with it off. Tapping the board
   still hides the rating while it is pressed, until the next move.

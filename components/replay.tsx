@@ -71,8 +71,6 @@ const MODES: BoardMode[] = ["analysis", "guess", "off"];
  */
 const REVEALS = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15, 20];
 const DEFAULT_REVEAL = "3";
-/** reveal-in in globals.css: a 200ms wait, then a 250ms fade. */
-const REVEAL_FADE_IN_MS = 450;
 
 /** Guess mode's badge sizes, in percent of the default; the middle one is the default. */
 const BADGE_SIZES = [50, 70, 100, 140, 200];
@@ -90,8 +88,6 @@ interface Reveal {
   idx: number;
   serial: number;
   on: boolean;
-  /** Shown because the move just landed, rather than on the viewer's tap. */
-  landed: boolean;
 }
 
 const BIG_BUTTON =
@@ -287,7 +283,7 @@ export function Replay({ id }: { id: number }) {
       setIdx(clamped);
       // Whichever way the viewer moved, the move now on the board is treated
       // as just played, so guess mode shows its analysis.
-      setReveal((r) => (clamped > 0 ? { idx: clamped, serial: (r?.serial ?? 0) + 1, on: true, landed: true } : null));
+      setReveal((r) => (clamped > 0 ? { idx: clamped, serial: (r?.serial ?? 0) + 1, on: true } : null));
       if (clamped >= moveCount) setPlaying(false);
     },
     [idx, moveCount]
@@ -330,7 +326,7 @@ export function Replay({ id }: { id: number }) {
     const serial = reveal.serial;
     const timer = setTimeout(
       () => setReveal((r) => (r && r.serial === serial ? { ...r, on: false } : r)),
-      revealMs + (reveal.landed ? REVEAL_FADE_IN_MS : 0)
+      revealMs
     );
     return () => clearTimeout(timer);
   }, [reveal, revealMs, playing]);
@@ -340,7 +336,7 @@ export function Replay({ id }: { id: number }) {
     setReveal((r) =>
       r && r.idx === idx && r.on
         ? { ...r, on: false }
-        : { idx, serial: (r?.serial ?? 0) + 1, on: true, landed: false }
+        : { idx, serial: (r?.serial ?? 0) + 1, on: true }
     );
   }, [idx]);
 
@@ -348,7 +344,7 @@ export function Replay({ id }: { id: number }) {
   const previewBadges = useCallback(() => {
     if (idx === 0) return;
     setReveal((r) =>
-      r && r.idx === idx && r.on ? { ...r } : { idx, serial: (r?.serial ?? 0) + 1, on: true, landed: false }
+      r && r.idx === idx && r.on ? { ...r } : { idx, serial: (r?.serial ?? 0) + 1, on: true }
     );
   }, [idx]);
 
@@ -507,20 +503,13 @@ export function Replay({ id }: { id: number }) {
       visitsLabel(s.candidate.visits),
     ]);
     if (lastRating && lastPlayed) played = playedMark(lastRating, lastPlayed.vertex);
-  } else if (rating && shownReveal && lastPlayed) {
+  } else if (rating && shownReveal?.on && lastPlayed) {
     const bestFirst = [...rating.alternatives].sort((a, b) => a.cost - b.cost);
     marks = candidateMarks(bestFirst, rating.scale, size, (s) => badgeLines(s.cost, s.candidate.visits));
     played = playedMark(rating, lastPlayed.vertex);
   }
   // The "lost" readout beside the move counter follows the played badge.
   const shownRating = mode === "analysis" ? lastRating : shownReveal ? rating : null;
-  const revealClass = !shownReveal
-    ? ""
-    : shownReveal.on
-      ? shownReveal.landed
-        ? "reveal-in"
-        : "reveal-now"
-      : "reveal-out";
 
   const scoreLead = Array.from(
     { length: moveCount + 1 },
@@ -560,8 +549,6 @@ export function Replay({ id }: { id: number }) {
           markScale={markSize / 100}
           playedScale={playedSize / 100}
           markSide={lastPlayed?.color}
-          marksKey={mode === "guess" ? `reveal-${reveal?.serial ?? 0}` : mode}
-          marksClassName={mode === "guess" ? revealClass : undefined}
           onBoardClick={mode === "guess" ? toggleReveal : undefined}
         >
           {isPlaying && !holding && (
@@ -630,7 +617,7 @@ export function Replay({ id }: { id: number }) {
                 // Kept even when empty, so nothing shifts when a rating appears.
                 <span className="flex min-w-[6.5rem] items-baseline">
                   {shownRating && lastPlayed && (
-                    <span key={shownReveal?.serial ?? mode} className={`flex items-baseline gap-2 whitespace-nowrap ${revealClass}`}>
+                    <span className={`flex items-baseline gap-2 whitespace-nowrap ${shownReveal?.on === false ? "invisible" : ""}`}>
                       <span className="fs-caption">{lastPlayed.vertex ? "lost" : "pass lost"}</span>
                       <span
                         className="fs-emph rounded-sm border-2 px-1.5 font-bold tabular-nums text-black"

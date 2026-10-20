@@ -34,9 +34,6 @@ interface GobanProps {
   playedScale?: number;
   /** Who played the move the played badge rates: it is edged in that stone's colour, black when not given. */
   markSide?: "B" | "W";
-  /** A new key starts a fresh marks layer, restarting any animation in `marksClassName`. */
-  marksKey?: string | number;
-  marksClassName?: string;
   onBoardClick?: () => void;
   /** Drawn over the board, positioned against its edges. */
   children?: ReactNode;
@@ -132,8 +129,6 @@ export function Goban({
   markScale = 1,
   playedScale = 1,
   markSide,
-  marksKey,
-  marksClassName,
   onBoardClick,
   children,
 }: GobanProps) {
@@ -462,18 +457,14 @@ export function Goban({
     const observer = new ResizeObserver(draw);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [size, signMap, marks, played, badges, markScale, playedScale, markSide, marksKey]);
+  }, [size, signMap, marks, played, badges, markScale, playedScale, markSide]);
 
   // Fills a positioned parent, which must have its own size.
   return (
     <div ref={containerRef} className="absolute inset-0 flex items-start justify-center">
       <div className={`relative ${onBoardClick ? "cursor-pointer touch-manipulation select-none" : ""}`} onClick={onBoardClick}>
         <canvas ref={canvasRef} className="block" />
-        <canvas
-          key={marksKey}
-          ref={marksRef}
-          className={`pointer-events-none absolute left-0 top-0 ${marksClassName ?? ""}`}
-        />
+        <canvas ref={marksRef} className="pointer-events-none absolute left-0 top-0" />
         {children}
       </div>
     </div>

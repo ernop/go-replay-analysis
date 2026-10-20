@@ -50,7 +50,7 @@ this repo's docs, not in an agent's private memory.
   and dates, and the desktop divider that sets the board's share of the
   width),
   `goban.tsx` (canvas board, Ogatak look; stones on one canvas, candidate
-  marks on a layer above that guess mode fades: analysis mode's circles, or
+  marks on a layer above: analysis mode's circles, or
   guess mode's badges, the options' plain circles centred on their points,
   and the played move's a rounded rectangle centred on its stone, edged in
   the mover's colour),
@@ -267,6 +267,11 @@ Convert only at the display layer, and follow these rules:
   changes by itself. A timed guess-mode rating counts down only during
   autoplay; paused, it stays until the viewer taps, presses Enter, or
   steps (PRODUCT.md "Guess mode").
+- Nothing fades (owner, 2026-10-20: "fade-in is hateful and unacceptable
+  to me across most contexts"): a move's rating appears in the same frame
+  as its stone and hides at once; menus and dialogs open and close without
+  fade, zoom or slide animations. Don't add any (PRODUCT.md "The
+  replayer's direction").
 - Players are marked by colour (a black or white box, a small stone), never
   labelled with the words "Black" / "White", and named by their handle,
   never their real name.
