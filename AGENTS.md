@@ -223,6 +223,16 @@ the GPU, when nothing is queued. Games queued by day wait for 00:00. Log:
 `deploy/systemd/`, installed in `~/.config/systemd/user/`. The game it was on stays
 `running` until the 15-minute rule above hands it out again.
 
+**Paused since 2026-10-23 (owner's decision: the GPU is needed for other
+work).** `go-replay-analyzer-start.timer` is stopped and disabled, so the
+worker does not start at 00:00 and KataGo stays off the GPU. The queue was
+kept, not cleared: its games stay `queued` in their order, and the three the
+07:00 stop interrupted stay `running`. Do not re-enable the timer or start the
+worker until the owner asks. To resume: `systemctl --user enable --now
+go-replay-analyzer-start.timer`; the worker then starts at the next 00:00 (the
+timer has no `Persistent=`, so it does not make up missed nights). The stop
+timer is left enabled; with nothing running it does nothing.
+
 API routes have no authentication. Acceptable on the home LAN only; add auth
 before exposing the app through a tunnel.
 
@@ -329,7 +339,10 @@ Convert only at the display layer, and follow these rules:
   ~3.8 s a position. They waited until the public copy named players by
   handle only, because DGS records the owner under his real name (PRODUCT.md
   "Public copy"). His games on larger boards (427, 442, 445, 462) also wait
-  for the larger-board engine.
+  for the larger-board engine. The nights of 2026-10-21 to 2026-10-23
+  finished 118 of them at about 5,700 positions a night (~4.4 s a
+  position); the other 49 (7,379 positions) were still queued when the
+  worker was paused on 2026-10-23 (see "Analysis pipeline").
 - Since 2026-10-06 the public copy holds only games reviewed in full at
   10,000 visits (12 then: the 11 below and game 582), and analysis mode
   shows the played move's rating (PRODUCT.md "Public copy", "Review
