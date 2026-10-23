@@ -1,0 +1,8 @@
+[Unit]
+Description=Restart go-replay-lan if a system library it uses was updated since it started
+
+[Service]
+# Install: copy this and go-replay-lan-libcheck.timer to ~/.config/systemd/user/, then
+#   systemctl --user daemon-reload && systemctl --user enable --now go-replay-lan-libcheck.timer
+Type=oneshot
+ExecStart=%h/proj/go-replay-analysis/deploy/restart-if-libs-replaced.sh go-replay-lan

@@ -134,8 +134,9 @@ this repo's docs, not in an agent's private memory.
   `project-ideas/candidate-projects/katago-local-go-analysis.md`.
 - **tvnik** (living-room NUC, Linux Mint, `/home/silver/proj`, LAN
   `192.168.1.140`) was only a test host: the owner, 2026-09-26, "tvnik was
-  just for testing". Its dev server and its own older library still run at
-  `http://192.168.1.140:4517`; nothing there needs keeping in step. It also
+  just for testing". Its dev server was stopped and disabled on 2026-10-23
+  (owner's decision; its nvm Node was not being kept current); its own older
+  library is still on disk, and nothing there needs keeping in step. It also
   has KataGo 1.18.1 (CPU + OpenCL builds) and a b18 net in `~/katago/`, used
   once to prove the pipeline end to end; too slow for real use (~30–37
   visits/s). Its Intel OpenCL runtime is user-local:
@@ -159,13 +160,23 @@ this repo's docs, not in an agent's private memory.
   template is `.env.example`. Only the server machine needs it: the PC's
   was copied from tvnik's on 2026-09-26, and its DGS login was checked from
   the PC. The dev server reads it at startup, so restart after editing.
-- tvnik's test server runs in the background as the systemd user service
-  `go-replay-tvnik` (`next dev` on :4517, nvm's Node 22; unit in
+- `go-replay-lan-libcheck.timer` (units in `deploy/systemd/`, installed in
+  `~/.config/systemd/user/`, enabled 2026-10-23 by the owner's decision) runs
+  `deploy/restart-if-libs-replaced.sh go-replay-lan` every day at noon, after
+  Ubuntu's morning updates and outside the worker's 00:00-07:00 window. A
+  long-running process keeps the old copy of a shared library until it
+  restarts, and Ubuntu's Node uses the system Brotli, OpenSSL and c-ares, so
+  when the service still maps a system file that an update replaced, the
+  script restarts it. `--dry-run` only reports; logs with
+  `journalctl --user -u go-replay-lan-libcheck`.
+- tvnik's test server, the systemd user service `go-replay-tvnik`
+  (`next dev` on :4517, nvm's Node 22; unit in
   `deploy/systemd/go-replay-tvnik.service`, installed in
-  `~/.config/systemd/user/`, enabled, linger on). Restart with
-  `systemctl --user restart go-replay-tvnik`; logs with
-  `journalctl --user -u go-replay-tvnik`. Do not start a second dev server
-  on 4517 there from an agent session.
+  `~/.config/systemd/user/`), is stopped and disabled since 2026-10-23. To
+  bring it back, install a current Node 22 with nvm, update the unit's two
+  Node paths in both copies, then `systemctl --user daemon-reload &&
+  systemctl --user enable --now go-replay-tvnik`. Do not start a second dev
+  server on 4517 there from an agent session.
 - Do not kill the dev server with `pkill -f "next dev"` from a shell whose own
   command line contains that string; it kills the calling shell too.
 
