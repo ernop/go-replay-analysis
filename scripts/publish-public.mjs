@@ -83,9 +83,11 @@ const modeFile = path.join(BUILD, "lib", "site-mode.ts");
 const modeSource = fs.readFileSync(modeFile, "utf8");
 if (modeSource.split(LAN_MODE_LINE).length !== 2) throw new Error(`${modeFile} lacks the line: ${LAN_MODE_LINE}`);
 fs.writeFileSync(modeFile, modeSource.replace(LAN_MODE_LINE, PUBLIC_MODE_LINE));
-// Writing routes and the accounts page exist only in the LAN app.
+// Writing routes, the accounts page and the request guard exist only in the LAN
+// app; a static export fails with a proxy file present.
 fs.rmSync(path.join(BUILD, "app", "api"), { recursive: true });
 fs.rmSync(path.join(BUILD, "app", "accounts"), { recursive: true });
+fs.rmSync(path.join(BUILD, "proxy.ts"));
 // Hard links: same files as the repo's install, inside the build root Turbopack requires.
 run("cp", ["-al", path.join(REPO, "node_modules"), path.join(BUILD, "node_modules")]);
 run(path.join(BUILD, "node_modules", ".bin", "next"), ["build"], { cwd: BUILD });

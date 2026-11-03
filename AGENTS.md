@@ -34,6 +34,11 @@ this repo's docs, not in an agent's private memory.
   (`library.json`, `games/<id>.json`; static in the public copy, live in the
   LAN app, used by both), and write routes under `app/api/` (games, accounts +
   fetch, analysis queue / next job / result posting; LAN only).
+- `proxy.ts` — since 2026-11-03 the LAN app refuses (403) a Host that is a
+  public DNS name, so a web page using DNS rebinding cannot reach it, and
+  writes whose Origin is another site. IP addresses and local-only names
+  (`localhost`, `*.local`, `*.lan`, single-label like `pc`) pass. The public
+  build deletes it (`scripts/publish-public.mjs`).
 - `lib/site-mode.ts` — `SITE_MODE`, "lan" or "public". Keep its one line
  exactly as written: `scripts/publish-public.mjs` rewrites that line to build
  the public copy. `lib/progress.ts` saves viewing progress (LAN: database,
