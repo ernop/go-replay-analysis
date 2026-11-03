@@ -30,7 +30,8 @@ const PUBLIC_MODE_LINE = 'export const SITE_MODE = "public" as "lan" | "public";
 // Next.js writes its page data as inline scripts. The site's CSP allows only
 // same-origin script files, so each one moves to /_scripts/<hash>.js; plain
 // (non-async) external scripts run in the same order, blocking like inline ones.
-const INLINE_SCRIPT = /<script>([\s\S]*?)<\/script>/g;
+// Since Next.js 16.4 one of them (Turbopack's chunk list) carries an id, kept.
+const INLINE_SCRIPT = /<script((?: id="[^"]*")?)>([\s\S]*?)<\/script>/g;
 const ANY_INLINE_SCRIPT = /<script(?![^>]*\ssrc=)[^>]*>/;
 
 const argv = process.argv.slice(2);
@@ -95,10 +96,10 @@ run(path.join(BUILD, "node_modules", ".bin", "next"), ["build"], { cwd: BUILD })
 fs.mkdirSync(path.join(OUT, "_scripts"));
 for (const page of filesUnder(OUT).filter((name) => name.endsWith(".html"))) {
   const file = path.join(OUT, page);
-  const html = fs.readFileSync(file, "utf8").replace(INLINE_SCRIPT, (_whole, body) => {
+  const html = fs.readFileSync(file, "utf8").replace(INLINE_SCRIPT, (_whole, id, body) => {
     const name = `${sha256(body).slice(0, 24)}.js`;
     fs.writeFileSync(path.join(OUT, "_scripts", name), body);
-    return `<script src="/_scripts/${name}"></script>`;
+    return `<script${id} src="/_scripts/${name}"></script>`;
   });
   if (ANY_INLINE_SCRIPT.test(html)) throw new Error(`${page} still has an inline script`);
   fs.writeFileSync(file, html);
